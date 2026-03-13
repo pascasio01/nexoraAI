@@ -1,3 +1,9 @@
 python-telegram-bot==20.7
 openai
 python-dotenv
+fastapi
+uvicorn
+openai
+python-dotenv
+python-multipart
+python-telegram-bot==20.7
