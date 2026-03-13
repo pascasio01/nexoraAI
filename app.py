@@ -19,9 +19,6 @@ from telegram.ext import (
 
 load_dotenv()
 
-# =========================
-# CONFIG
-# =========================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
 APP_NAME = os.getenv("APP_NAME", "Nexora")
@@ -41,9 +38,6 @@ if not OPENAI_API_KEY:
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 app = FastAPI(title=APP_NAME)
 
-# =========================
-# IDENTIDAD DE NEXORA
-# =========================
 SYSTEM_PROMPT = f"""
 Eres {APP_NAME}, una asistente inteligente avanzada, clara, útil, humana, precisa y con estilo tecnológico elegante.
 Fuiste creada por {CREATOR_NAME}, también conocido como {CREATOR_ALIAS}.
@@ -58,9 +52,6 @@ Si el usuario pregunta quién te creó, respondes con el nombre del creador.
 Si el usuario pide noticias en tiempo real y no hay conexión de búsqueda habilitada, lo dices claramente.
 """
 
-# =========================
-# MEMORIA BÁSICA
-# =========================
 memory_store = defaultdict(list)
 MAX_HISTORY = 10
 
@@ -96,9 +87,6 @@ async def ask_nexora(memory_key: str, user_text: str, channel_name: str):
     save_memory(memory_key, user_text, answer)
     return answer
 
-# =========================
-# WEB
-# =========================
 class ChatRequest(BaseModel):
     texto: str
     usuario: str | None = "web_user"
@@ -120,6 +108,15 @@ async def home():
 async def health():
     return {"ok": True}
 
+@app.get("/about")
+async def about():
+    return {
+        "nombre": APP_NAME,
+        "creador": CREATOR_NAME,
+        "alias": CREATOR_ALIAS,
+        "descripcion": "Asistente inteligente con enfoque en tecnología, productividad, educación y guía digital."
+    }
+
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
@@ -135,18 +132,6 @@ async def reset_web(req: ChatRequest):
     memory_store[memory_key] = []
     return {"ok": True, "mensaje": "Memoria web reiniciada."}
 
-@app.get("/about")
-async def about():
-    return {
-        "nombre": APP_NAME,
-        "creador": CREATOR_NAME,
-        "alias": CREATOR_ALIAS,
-        "descripcion": "Asistente inteligente con enfoque en tecnología, productividad, educación y guía digital."
-    }
-
-# =========================
-# WHATSAPP (TWILIO)
-# =========================
 @app.post("/whatsapp")
 async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
     try:
@@ -169,9 +154,6 @@ async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
 </Response>"""
         return Response(content=twiml_response, media_type="application/xml")
 
-# =========================
-# TELEGRAM
-# =========================
 telegram_app = None
 
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
