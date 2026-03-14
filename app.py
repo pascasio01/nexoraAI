@@ -13,8 +13,8 @@ from telegram.ext import (
     filters
 )
 
+app = FastAPI()
 telegram_app = None
-
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         await update.message.reply_text("Acceso no autorizado.")
