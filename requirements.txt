@@ -4,3 +4,7 @@ openai
 python-dotenv
 python-multipart
 python-telegram-bot==21.10
+redis
+tavily-python
+httpx
+
