@@ -1,3 +1,18 @@
+import os
+import asyncio
+
+from fastapi import FastAPI, Request
+
+from telegram import Update
+from telegram.constants import ChatAction
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
+
 telegram_app = None
 
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
