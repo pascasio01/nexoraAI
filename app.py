@@ -1,7 +1,12 @@
-import os
-import asyncio
 
-from fastapi import FastAPI, Request
+import os
+import html
+from collections import defaultdict
+
+from fastapi import FastAPI, Form, Response, Request
+from pydantic import BaseModel
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
 
 from telegram import Update
 from telegram.constants import ChatAction
@@ -10,15 +15,166 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     ContextTypes,
-    filters
+    filters,
 )
+
+load_dotenv()
+
+# =========================
+# VARIABLES
+# =========================
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+APP_NAME = os.getenv("APP_NAME", "Nexora")
+CREATOR_NAME = os.getenv("CREATOR_NAME", "Pascasio Emmanuel Reynoso Reyes")
+CREATOR_ALIAS = os.getenv("CREATOR_ALIAS", "Emmanuel Reynoso")
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
-BASE_URL = os.getenv("BASE_URL")
+BASE_URL = os.getenv("BASE_URL", "https://nexoraai-production.up.railway.app")
 
-app = FastAPI()
+NEWS_MODE = os.getenv("NEWS_MODE", "off").lower()
+DOCS_MODE = os.getenv("DOCS_MODE", "off").lower()
+VISION_MODE = os.getenv("VISION_MODE", "off").lower()
+AUTOMATION_MODE = os.getenv("AUTOMATION_MODE", "off").lower()
+
+if not OPENAI_API_KEY:
+    raise ValueError("Falta OPENAI_API_KEY")
+
+client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+app = FastAPI(title=APP_NAME)
+
+# =========================
+# IDENTIDAD
+# =========================
+SYSTEM_PROMPT = f"""
+Eres {APP_NAME}, una asistente inteligente avanzada, clara, útil, humana y precisa.
+Fuiste creada por {CREATOR_NAME}, también conocido como {CREATOR_ALIAS}.
+Respondes en el idioma del usuario.
+Si el usuario escribe con errores o sin comas, entiendes su intención real.
+No inventas información. Si no sabes algo, lo dices con honestidad.
+No finges ser doctora, abogada ni profesional licenciada.
+En salud, legal y finanzas solo orientas de forma general y segura.
+Tu misión es ayudar a pensar mejor, aprender mejor y construir mejor con tecnología.
+Si el usuario pregunta quién te creó, respondes con el nombre del creador.
+"""
+
+# =========================
+# MEMORIA BÁSICA
+# =========================
+memory_store = defaultdict(list)
+MAX_HISTORY = 10
+
+def save_memory(memory_key: str, user_text: str, answer: str):
+    memory_store[memory_key].append({"role": "user", "content": user_text})
+    memory_store[memory_key].append({"role": "assistant", "content": answer})
+    memory_store[memory_key] = memory_store[memory_key][-MAX_HISTORY:]
+
+async def ask_nexora(memory_key: str, user_text: str, channel_name: str):
+    history = memory_store[memory_key]
+
+    system_text = SYSTEM_PROMPT + f"\nEstás respondiendo por {channel_name}."
+    if NEWS_MODE != "on":
+        system_text += "\nLa búsqueda y noticias en tiempo real no están habilitadas aún."
+    if DOCS_MODE != "on":
+        system_text += "\nEl análisis de documentos no está habilitado aún."
+    if VISION_MODE != "on":
+        system_text += "\nLa visión por computadora no está habilitada aún."
+    if AUTOMATION_MODE != "on":
+        system_text += "\nLa automatización avanzada no está habilitada aún."
+
+    messages = [{"role": "system", "content": system_text}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": user_text})
+
+    response = await client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=messages,
+        max_tokens=500,
+    )
+
+    answer = response.choices[0].message.content or "No pude generar una respuesta."
+    save_memory(memory_key, user_text, answer)
+    return answer
+
+# =========================
+# WEB
+# =========================
+class ChatRequest(BaseModel):
+    texto: str
+    usuario: str | None = "web_user"
+
+@app.get("/")
+async def home():
+    return {
+        "app": APP_NAME,
+        "status": "activa",
+        "creador": CREATOR_NAME,
+        "alias": CREATOR_ALIAS,
+        "news_mode": NEWS_MODE,
+        "docs_mode": DOCS_MODE,
+        "vision_mode": VISION_MODE,
+        "automation_mode": AUTOMATION_MODE,
+    }
+
+@app.get("/health")
+async def health():
+    return {"ok": True}
+
+@app.get("/about")
+async def about():
+    return {
+        "nombre": APP_NAME,
+        "creador": CREATOR_NAME,
+        "alias": CREATOR_ALIAS,
+        "descripcion": "Asistente inteligente con enfoque en tecnología, productividad, educación y guía digital."
+    }
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    try:
+        memory_key = f"web:{req.usuario}"
+        answer = await ask_nexora(memory_key, req.texto, "web")
+        return {"respuesta": answer}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/reset-web")
+async def reset_web(req: ChatRequest):
+    memory_key = f"web:{req.usuario}"
+    memory_store[memory_key] = []
+    return {"ok": True, "mensaje": "Memoria web reiniciada."}
+
+# =========================
+# WHATSAPP
+# =========================
+@app.post("/whatsapp")
+async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
+    try:
+        memory_key = f"wa:{From}"
+        answer = await ask_nexora(memory_key, Body, "WhatsApp")
+        answer = html.escape(answer)
+
+        twiml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Message>{answer}</Message>
+</Response>"""
+
+        return Response(content=twiml_response, media_type="application/xml")
+
+    except Exception as e:
+        error_text = html.escape(f"Tuve un problema procesando tu mensaje: {e}")
+        twiml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Message>{error_text}</Message>
+</Response>"""
+        return Response(content=twiml_response, media_type="application/xml")
+
+# =========================
+# TELEGRAM
+# =========================
 telegram_app = None
+
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         await update.message.reply_text("Acceso no autorizado.")
