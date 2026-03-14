@@ -1,12 +1,18 @@
-
 import os
+import json
 import html
-from collections import defaultdict
+import io
+import logging
+import asyncio
+from datetime import datetime
 
 from fastapi import FastAPI, Form, Response, Request
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
+import redis.asyncio as redis
+from tavily import TavilyClient
+import httpx
 
 from telegram import Update
 from telegram.constants import ChatAction
@@ -21,129 +27,325 @@ from telegram.ext import (
 load_dotenv()
 
 # =========================
-# VARIABLES
+# CONFIGURACIÓN & LOGS
 # =========================
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("Nexora")
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+REDIS_URL = os.getenv("REDIS_URL")
+OWNER_ID = int(os.getenv("OWNER_ID", "0"))
+BASE_URL = os.getenv("BASE_URL", "https://nexoraai-production.up.railway.app").rstrip("/")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+ACTION_WEBHOOK_URL = os.getenv("ACTION_WEBHOOK_URL")
+
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
 APP_NAME = os.getenv("APP_NAME", "Nexora")
 CREATOR_NAME = os.getenv("CREATOR_NAME", "Pascasio Emmanuel Reynoso Reyes")
 CREATOR_ALIAS = os.getenv("CREATOR_ALIAS", "Emmanuel Reynoso")
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-OWNER_ID = int(os.getenv("OWNER_ID", "0"))
-BASE_URL = os.getenv("BASE_URL", "https://nexoraai-production.up.railway.app")
-
-NEWS_MODE = os.getenv("NEWS_MODE", "off").lower()
-DOCS_MODE = os.getenv("DOCS_MODE", "off").lower()
-VISION_MODE = os.getenv("VISION_MODE", "off").lower()
-AUTOMATION_MODE = os.getenv("AUTOMATION_MODE", "off").lower()
-
 if not OPENAI_API_KEY:
     raise ValueError("Falta OPENAI_API_KEY")
+if not BOT_TOKEN:
+    raise ValueError("Falta BOT_TOKEN")
+if not REDIS_URL:
+    raise ValueError("Falta REDIS_URL")
+if not BASE_URL:
+    raise ValueError("Falta BASE_URL")
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
-app = FastAPI(title=APP_NAME)
+r = redis.from_url(REDIS_URL, decode_responses=True)
+tavily = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
+
+app = FastAPI(title=f"{APP_NAME} AI OS")
+tg_app = None
+
+MAX_CHAT_HISTORY = 12
 
 # =========================
-# IDENTIDAD
+# SEGURIDAD Y MEMORIA
+# =========================
+async def check_rate_limit(user_id: str):
+    key = f"rate_limit:{user_id}"
+    count = await r.incr(key)
+    if count == 1:
+        await r.expire(key, 60)
+    return count <= 8
+
+async def update_user_profile(user_id: str, last_interaction: str):
+    try:
+        profile_key = f"profile:{user_id}"
+        old_profile = await r.get(profile_key) or "Sin datos previos."
+
+        prompt = (
+            f"Perfil actual: {old_profile}\n"
+            f"Interacción: {last_interaction}\n"
+            "Actualiza el perfil con hechos útiles y relativamente estables del usuario. "
+            "No inventes. Sé breve."
+        )
+
+        res = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "system", "content": prompt}],
+            max_tokens=120
+        )
+        await r.set(profile_key, res.choices[0].message.content)
+    except Exception as e:
+        logger.error(f"Error actualizando perfil: {e}")
+
+async def save_chat_memory(user_id: str, role: str, content: str):
+    await r.rpush(f"chat:{user_id}", json.dumps({"role": role, "content": content}))
+    await r.ltrim(f"chat:{user_id}", -MAX_CHAT_HISTORY, -1)
+
+async def load_chat_memory(user_id: str):
+    history_raw = await r.lrange(f"chat:{user_id}", 0, -1)
+    return [json.loads(m) for m in history_raw]
+
+async def reset_memory(user_id: str):
+    await r.delete(f"chat:{user_id}")
+
+# =========================
+# HERRAMIENTAS
+# =========================
+async def search_web(query: str):
+    if not tavily:
+        return [{"error": "TAVILY_API_KEY no configurada"}]
+
+    try:
+        result = tavily.search(query=query, max_results=3)
+        return [
+            {
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("content", "")
+            }
+            for item in result.get("results", [])
+        ]
+    except Exception as e:
+        return [{"error": f"Error de búsqueda: {e}"}]
+
+async def consultar_biblioteca(query: str):
+    return {
+        "resultado": "Sistema RAG listo para indexar PDFs y documentos. Búsqueda privada aún en fase inicial.",
+        "query": query
+    }
+
+async def execute_action(action_name: str, details: dict):
+    if not ACTION_WEBHOOK_URL:
+        return "ACTION_WEBHOOK_URL no configurado."
+
+    try:
+        async with httpx.AsyncClient(timeout=20) as client_http:
+            payload = {
+                "action": action_name,
+                "user_id": OWNER_ID,
+                "agent": APP_NAME,
+                "data": {
+                    **details,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            }
+            res = await client_http.post(ACTION_WEBHOOK_URL, json=payload)
+            return f"Acción '{action_name}' enviada. Estado: {res.status_code}"
+    except Exception as e:
+        return f"Error ejecutando acción: {e}"
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_web",
+            "description": "Busca en tiempo real en internet.",
+            "parameters": {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "consultar_biblioteca",
+            "description": "Consulta documentos y archivos privados del usuario.",
+            "parameters": {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_action",
+            "description": "Guarda notas, crea recordatorios, agenda eventos o genera reportes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action_name": {
+                        "type": "string",
+                        "enum": [
+                            "save_note",
+                            "set_reminder",
+                            "set_calendar_event",
+                            "send_report",
+                            "location_alarm"
+                        ]
+                    },
+                    "details": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "content": {"type": "string"},
+                            "category": {
+                                "type": "string",
+                                "enum": ["Trabajo", "Personal", "Idea", "Finanzas", "Estudio", "Seguridad", "Otro"]
+                            },
+                            "priority": {
+                                "type": "string",
+                                "enum": ["Alta", "Media", "Baja"]
+                            },
+                            "schedule_time": {"type": "string"},
+                            "destination": {"type": "string"},
+                            "report_type": {
+                                "type": "string",
+                                "enum": ["diario", "semanal", "ideas", "tasks", "mixed"]
+                            }
+                        },
+                        "required": ["content"]
+                    }
+                },
+                "required": ["action_name", "details"]
+            }
+        }
+    }
+]
+
+# =========================
+# NÚCLEO DE INTELIGENCIA
 # =========================
 SYSTEM_PROMPT = f"""
-Eres {APP_NAME}, una asistente inteligente avanzada, clara, útil, humana y precisa.
-Fuiste creada por {CREATOR_NAME}, también conocido como {CREATOR_ALIAS}.
-Respondes en el idioma del usuario.
-Si el usuario escribe con errores o sin comas, entiendes su intención real.
-No inventas información. Si no sabes algo, lo dices con honestidad.
-No finges ser doctora, abogada ni profesional licenciada.
-En salud, legal y finanzas solo orientas de forma general y segura.
-Tu misión es ayudar a pensar mejor, aprender mejor y construir mejor con tecnología.
-Si el usuario pregunta quién te creó, respondes con el nombre del creador.
+Eres {APP_NAME}, una asistente de IA avanzada creada por {CREATOR_NAME}, también conocido como {CREATOR_ALIAS}.
+
+Reglas:
+- Responde en el idioma del usuario.
+- No inventes información.
+- Si una función no está realmente activa, dilo claramente.
+- Puedes usar herramientas para buscar en internet, consultar biblioteca y ejecutar acciones.
+- Si el usuario pide guardar algo o recordar algo, puedes usar execute_action.
+- Si el usuario pide datos actuales, usa search_web.
+- Sé clara, útil, breve y elegante.
 """
 
-# =========================
-# MEMORIA BÁSICA
-# =========================
-memory_store = defaultdict(list)
-MAX_HISTORY = 10
+async def ask_nexora(user_id: str, text: str, channel: str):
+    if not await check_rate_limit(user_id):
+        return "⚠️ Límite de mensajes alcanzado. Espera un minuto."
 
-def save_memory(memory_key: str, user_text: str, answer: str):
-    memory_store[memory_key].append({"role": "user", "content": user_text})
-    memory_store[memory_key].append({"role": "assistant", "content": answer})
-    memory_store[memory_key] = memory_store[memory_key][-MAX_HISTORY:]
+    history = await load_chat_memory(user_id)
+    profile = await r.get(f"profile:{user_id}") or "Usuario nuevo."
 
-async def ask_nexora(memory_key: str, user_text: str, channel_name: str):
-    history = memory_store[memory_key]
-
-    system_text = SYSTEM_PROMPT + f"\nEstás respondiendo por {channel_name}."
-    if NEWS_MODE != "on":
-        system_text += "\nLa búsqueda y noticias en tiempo real no están habilitadas aún."
-    if DOCS_MODE != "on":
-        system_text += "\nEl análisis de documentos no está habilitado aún."
-    if VISION_MODE != "on":
-        system_text += "\nLa visión por computadora no está habilitada aún."
-    if AUTOMATION_MODE != "on":
-        system_text += "\nLa automatización avanzada no está habilitada aún."
-
-    messages = [{"role": "system", "content": system_text}]
-    messages.extend(history)
-    messages.append({"role": "user", "content": user_text})
+    sys_prompt = f"{SYSTEM_PROMPT}\nPerfil del usuario: {profile}\nCanal: {channel}"
+    messages = [{"role": "system", "content": sys_prompt}] + history + [{"role": "user", "content": text}]
 
     response = await client.chat.completions.create(
         model=MODEL_NAME,
         messages=messages,
-        max_tokens=500,
+        tools=tools,
+        tool_choice="auto",
+        max_tokens=800
     )
 
-    answer = response.choices[0].message.content or "No pude generar una respuesta."
-    save_memory(memory_key, user_text, answer)
+    msg = response.choices[0].message
+
+    if msg.tool_calls:
+        messages.append(msg)
+
+        for tool in msg.tool_calls:
+            if tool.function.name == "search_web":
+                args = json.loads(tool.function.arguments)
+                res = await search_web(args["query"])
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "name": "search_web",
+                    "content": json.dumps(res, ensure_ascii=False)
+                })
+
+            elif tool.function.name == "consultar_biblioteca":
+                args = json.loads(tool.function.arguments)
+                res = await consultar_biblioteca(args["query"])
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "name": "consultar_biblioteca",
+                    "content": json.dumps(res, ensure_ascii=False)
+                })
+
+            elif tool.function.name == "execute_action":
+                args = json.loads(tool.function.arguments)
+                res = await execute_action(args["action_name"], args["details"])
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool.id,
+                    "name": "execute_action",
+                    "content": res
+                })
+
+        final = await client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=messages,
+            max_tokens=800
+        )
+        answer = final.choices[0].message.content or "No pude generar una respuesta."
+    else:
+        answer = msg.content or "No pude generar una respuesta."
+
+    await save_chat_memory(user_id, "user", text)
+    await save_chat_memory(user_id, "assistant", answer)
+
+    asyncio.create_task(update_user_profile(user_id, f"User: {text} | Nexora: {answer}"))
     return answer
 
 # =========================
-# WEB
+# MODELOS WEB
 # =========================
 class ChatRequest(BaseModel):
     texto: str
     usuario: str | None = "web_user"
 
+# =========================
+# WEB & HEALTH
+# =========================
 @app.get("/")
 async def home():
     return {
         "app": APP_NAME,
-        "status": "activa",
-        "creador": CREATOR_NAME,
-        "alias": CREATOR_ALIAS,
-        "news_mode": NEWS_MODE,
-        "docs_mode": DOCS_MODE,
-        "vision_mode": VISION_MODE,
-        "automation_mode": AUTOMATION_MODE,
+        "status": "active",
+        "model": MODEL_NAME
     }
 
 @app.get("/health")
 async def health():
-    return {"ok": True}
-
-@app.get("/about")
-async def about():
-    return {
-        "nombre": APP_NAME,
-        "creador": CREATOR_NAME,
-        "alias": CREATOR_ALIAS,
-        "descripcion": "Asistente inteligente con enfoque en tecnología, productividad, educación y guía digital."
-    }
+    try:
+        pong = await r.ping()
+        return {"ok": True, "redis": pong, "telegram": tg_app is not None}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
     try:
-        memory_key = f"web:{req.usuario}"
-        answer = await ask_nexora(memory_key, req.texto, "web")
+        answer = await ask_nexora(req.usuario or "web_user", req.texto, "Web")
         return {"respuesta": answer}
     except Exception as e:
         return {"error": str(e)}
 
 @app.post("/reset-web")
 async def reset_web(req: ChatRequest):
-    memory_key = f"web:{req.usuario}"
-    memory_store[memory_key] = []
-    return {"ok": True, "mensaje": "Memoria web reiniciada."}
+    await reset_memory(req.usuario or "web_user")
+    return {"ok": True, "mensaje": "Memoria reiniciada."}
 
 # =========================
 # WHATSAPP
@@ -151,131 +353,149 @@ async def reset_web(req: ChatRequest):
 @app.post("/whatsapp")
 async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
     try:
-        memory_key = f"wa:{From}"
-        answer = await ask_nexora(memory_key, Body, "WhatsApp")
-        answer = html.escape(answer)
-
-        twiml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+        answer = await ask_nexora(From, Body, "WhatsApp")
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Message>{answer}</Message>
+    <Message>{html.escape(answer)}</Message>
 </Response>"""
-
-        return Response(content=twiml_response, media_type="application/xml")
-
+        return Response(content=twiml, media_type="application/xml")
     except Exception as e:
-        error_text = html.escape(f"Tuve un problema procesando tu mensaje: {e}")
-        twiml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+        twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Message>{error_text}</Message>
+    <Message>{html.escape(str(e))}</Message>
 </Response>"""
-        return Response(content=twiml_response, media_type="application/xml")
+        return Response(content=twiml, media_type="application/xml")
 
 # =========================
-# TELEGRAM
+# TELEGRAM HANDLERS
 # =========================
-telegram_app = None
-
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         await update.message.reply_text("Acceso no autorizado.")
         return
-
-    memory_store[f"tg:{update.effective_user.id}"] = []
-    await update.message.reply_text(
-        f"Hola. Soy {APP_NAME}. Estoy activa, privada y lista para ayudarte."
-    )
-
-async def tg_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != OWNER_ID:
-        await update.message.reply_text("Acceso no autorizado.")
-        return
-
-    memory_store[f"tg:{update.effective_user.id}"] = []
-    await update.message.reply_text("Memoria reiniciada.")
+    await reset_memory(str(update.effective_user.id))
+    await update.message.reply_text(f"{APP_NAME} activa. Memoria limpia y lista.")
 
 async def tg_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         await update.message.reply_text("Acceso no autorizado.")
         return
-
-    await update.message.reply_text(
-        f"{APP_NAME} activa.\n"
+    msg = (
+        f"Estado: activa\n"
         f"Modelo: {MODEL_NAME}\n"
-        f"Noticias tiempo real: {NEWS_MODE}\n"
-        f"Documentos: {DOCS_MODE}\n"
-        f"Visión: {VISION_MODE}\n"
-        f"Automatización: {AUTOMATION_MODE}"
+        f"Web search: {'on' if TAVILY_API_KEY else 'off'}\n"
+        f"Redis: ok\n"
+        f"Actions webhook: {'on' if ACTION_WEBHOOK_URL else 'off'}"
     )
+    await update.message.reply_text(msg)
 
-async def tg_responder(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def tg_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != OWNER_ID:
         await update.message.reply_text("Acceso no autorizado.")
         return
+    await reset_memory(str(update.effective_user.id))
+    await update.message.reply_text("Memoria reiniciada.")
 
-    if not update.message or not update.message.text:
+async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
         return
 
-    texto = update.message.text.strip().lower()
-
-    if "quién te creó" in texto or "quien te creo" in texto:
-        await update.message.reply_text(
-            f"Fui creada por {CREATOR_NAME}, también conocido como {CREATOR_ALIAS}."
-        )
+    if not update.message:
         return
+
+    user_id = str(update.effective_user.id)
+    await context.bot.send_chat_action(
+        chat_id=update.effective_chat.id,
+        action=ChatAction.TYPING
+    )
 
     try:
-        await context.bot.send_chat_action(
-            chat_id=update.effective_chat.id,
-            action=ChatAction.TYPING
-        )
+        if update.message.document:
+            await update.message.reply_text("📥 Documento recibido. La biblioteca privada está lista para integrarse.")
+            return
 
-        memory_key = f"tg:{update.effective_user.id}"
-        answer = await ask_nexora(memory_key, update.message.text, "Telegram")
-        await update.message.reply_text(answer)
+        if update.message.photo:
+            file = await context.bot.get_file(update.message.photo[-1].file_id)
+            prompt = update.message.caption or "Analiza esta imagen."
+
+            response = await client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": file.file_path}}
+                        ]
+                    }
+                ],
+                max_tokens=800
+            )
+
+            answer = response.choices[0].message.content or "No pude analizar la imagen."
+            await save_chat_memory(user_id, "user", prompt)
+            await save_chat_memory(user_id, "assistant", answer)
+            await update.message.reply_text(answer)
+            return
+
+        if update.message.voice:
+            file = await context.bot.get_file(update.message.voice.file_id)
+            audio_data = io.BytesIO()
+            await file.download_to_memory(audio_data)
+            audio_data.name = "audio.ogg"
+            audio_data.seek(0)
+
+            transcription = await client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_data
+            )
+
+            answer = await ask_nexora(user_id, transcription.text, "Telegram")
+            await update.message.reply_text(answer)
+            return
+
+        if update.message.text:
+            res = await ask_nexora(user_id, update.message.text, "Telegram")
+            await update.message.reply_text(res)
+            return
 
     except Exception as e:
-        await update.message.reply_text(f"Tuve un problema: {e}")
+        logger.error(f"Error Telegram: {e}")
+        await update.message.reply_text(f"Error interno: {e}")
 
+# =========================
+# LIFECYCLE
+# =========================
 @app.on_event("startup")
-async def startup_event():
-    global telegram_app
+async def startup():
+    global tg_app
+    tg_app = ApplicationBuilder().token(BOT_TOKEN).build()
+    tg_app.add_handler(CommandHandler("start", tg_start))
+    tg_app.add_handler(CommandHandler("status", tg_status))
+    tg_app.add_handler(CommandHandler("reset", tg_reset))
+    tg_app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_telegram))
 
-    if BOT_TOKEN:
-        telegram_app = ApplicationBuilder().token(BOT_TOKEN).build()
+    await tg_app.initialize()
+    await tg_app.start()
+    await tg_app.bot.set_webhook(url=f"{BASE_URL}/tg/{BOT_TOKEN}")
+    logger.info("Telegram webhook activo")
 
-        telegram_app.add_handler(CommandHandler("start", tg_start))
-        telegram_app.add_handler(CommandHandler("reset", tg_reset))
-        telegram_app.add_handler(CommandHandler("status", tg_status))
-        telegram_app.add_handler(
-            MessageHandler(filters.TEXT & ~filters.COMMAND, tg_responder)
-        )
-
-        await telegram_app.initialize()
-        await telegram_app.start()
-
-        webhook_url = f"{BASE_URL}/telegram-webhook/{BOT_TOKEN}"
-        await telegram_app.bot.set_webhook(url=webhook_url)
-        print(f"Telegram webhook activo en: {webhook_url}")
-
-@app.post("/telegram-webhook/{token}")
-async def telegram_webhook(token: str, request: Request):
+@app.post("/tg/{token}")
+async def tg_webhook(token: str, request: Request):
     if token != BOT_TOKEN:
-        return {"ok": False, "error": "token inválido"}
-
-    if telegram_app is None:
-        return {"ok": False, "error": "telegram no iniciado"}
+        return Response(status_code=403)
+    if tg_app is None:
+        return Response(status_code=503)
 
     data = await request.json()
-    update = Update.de_json(data, telegram_app.bot)
-    await telegram_app.process_update(update)
+    await tg_app.process_update(Update.de_json(data, tg_app.bot))
     return {"ok": True}
 
 @app.on_event("shutdown")
-async def shutdown_event():
-    global telegram_app
-
-    if telegram_app:
-        await telegram_app.bot.delete_webhook()
-        await telegram_app.stop()
-        await telegram_app.shutdown()
-        print("Telegram detenido.")
+async def shutdown():
+    global tg_app
+    if tg_app:
+        await tg_app.bot.delete_webhook()
+        await tg_app.stop()
+        await tg_app.shutdown()
