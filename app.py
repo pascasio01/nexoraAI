@@ -13,6 +13,10 @@ from telegram.ext import (
     filters
 )
 
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+OWNER_ID = int(os.getenv("OWNER_ID", "0"))
+BASE_URL = os.getenv("BASE_URL")
+
 app = FastAPI()
 telegram_app = None
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
