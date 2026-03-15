@@ -1,4 +1,154 @@
-import os
+(function(){
+  const site_id = document.currentScript.getAttribute('data-site-id');
+  let visitor_id = localStorage.getItem(site_id+"_visitor");
+  if (!visitor_id) {
+    const name = prompt("¿Cómo te llamas?");
+    fetch("/visitor/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ site_id, name })
+    })
+    .then(res => res.json())
+    .then(data => {
+      visitor_id = data.visitor_id;
+      localStorage.setItem(site_id+"_visitor", visitor_id);
+      startChat();
+    });
+  } else {
+    startChat();
+  }
+  function startChat() {
+    fetch("/room/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ site_id, type: "soporte" })
+    })
+    .then(res => res.json())
+    .then(data => {
+      const room_id = data.room_id;
+      const chatDiv = document.createElement('div');
+      chatDiv.innerHTML = `<div id="nexora-widget" style="position:fixed;bottom:24px;right:24px;background:#fff;padding:12px;border-radius:8px;box-shadow:0 2px 8px #aaa;">
+          <div id="msgs" style="max-height:150px;overflow:auto;margin-bottom:8px;"></div>
+          <input id="msg" placeholder="Escribe..." style="width:120px;">
+          <button id="send">Enviar</button>
+        </div>`;
+      document.body.appendChild(chatDiv);
+      const ws = new WebSocket("wss://TU_BACKEND/ws/" + site_id + "/" + room_id);
+      ws.onmessage = evt => {
+        const msgData = JSON.parse(evt.data);
+        const msgBox = document.getElementById('msgs');
+        const msgElem = document.createElement('div');
+        msgElem.textContent = msgData.content;
+        msgBox.appendChild(msgElem);
+        msgBox.scrollTop = msgBox.scrollHeight;
+      };
+      document.getElementById('send').onclick = () => {
+        const content = document.getElementById('msg').value;
+        ws.send(JSON.stringify({
+          visitor_id,
+          content
+        }));
+        document.getElementById('msg').value = "";
+      };
+    });
+  }
+})();<script src="https://TU_DOMINIO/widget.js" data-site-id="abc123"></script>connections = {}
+
+@app.websocket("/ws/{site_id}/{room_id}")
+async def websocket_room(websocket: WebSocket, site_id: str, room_id: str):
+    await websocket.accept()
+    key = f"{site_id}:{room_id}"
+    if key not in connections:
+        connections[key] = []
+    connections[key].append(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            payload = json.loads(data)
+            visitor_id = payload.get("visitor_id")
+            content = payload.get("content")
+            with engine.connect() as conn:
+                conn.execute(insert(messages).values(room_id=room_id, visitor_id=visitor_id, content=content))
+            for ws in connections[key]:
+                await ws.send_text(json.dumps({
+                    "visitor_id": visitor_id,
+                    "content": content
+                }))
+    except WebSocketDisconnect:
+        connections[key].remove(websocket)@app.post("/visitor/register")
+async def register_visitor(site_id: str, name: str = "", email: str = ""):
+    visitor_id = f"{site_id}_{uuid.uuid4().hex[:10]}"
+    with engine.connect() as conn:
+        conn.execute(insert(visitors).values(visitor_id=visitor_id, site_id=site_id, name=name, email=email))
+    return {"visitor_id": visitor_id}
+
+@app.post("/room/create")
+async def create_room(site_id: str, type: str = "soporte"):
+    room_id = f"{site_id}_{type}_{uuid.uuid4().hex[:8]}"
+    with engine.connect() as conn:
+        conn.execute(insert(rooms).values(room_id=room_id, site_id=site_id, type=type))
+    return {"room_id": room_id}
+
+@app.get("/rooms/{site_id}")
+async def list_rooms(site_id: str):
+    with engine.connect() as conn:
+        result = conn.execute(select(rooms).where(rooms.c.site_id == site_id)).fetchall()
+    return [{"room_id": r.room_id, "type": r.type, "created_at": r.created_at} for r in result]
+
+@app.post("/message/send")
+async def send_message(room_id: str, visitor_id: str, content: str):
+    with engine.connect() as conn:
+        conn.execute(insert(messages).values(room_id=room_id, visitor_id=visitor_id, content=content))
+    return {"ok": True}
+
+@app.get("/messages/{room_id}")
+async def get_messages(room_id: str):
+    with engine.connect() as conn:
+        result = conn.execute(select(messages).where(messages.c.room_id == room_id)).fetchall()
+    return [{"visitor_id": r.visitor_id, "content": r.content, "timestamp": r.timestamp} for r in result]sites = Table("sites", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("site_id", String, unique=True),
+    Column("name", String),
+    Column("theme", String),
+    Column("bot_name", String)
+)
+
+visitors = Table("visitors", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("visitor_id", String, unique=True),
+    Column("site_id", String),
+    Column("name", String),
+    Column("email", String),
+    Column("created_at", TIMESTAMP)
+)
+
+rooms = Table("rooms", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("room_id", String, unique=True),
+    Column("site_id", String),
+    Column("type", String),
+    Column("created_at", TIMESTAMP)
+)
+
+messages = Table("messages", metadata,
+    Column("id", Integer, primary_key=True),
+    Column("room_id", String),
+    Column("visitor_id", String),
+    Column("content", Text),
+    Column("timestamp", TIMESTAMP)
+)
+
+# Descomenta solo para crear tablas la primera vez
+# metadata.create_all(bind=engine)# ========== NUEVAS IMPORTS ==========
+from sqlalchemy import create_engine, MetaData, Table, Column, String, Integer, Text, TIMESTAMP
+from sqlalchemy.sql import insert, select
+from fastapi import WebSocket, WebSocketDisconnect
+import uuid
+
+# ========== VARIABLES DE ENTORNO ==========
+DATABASE_URL = os.getenv("DATABASE_URL")  # Railway variable
+engine = create_engine(DATABASE_URL)
+metadata = MetaData()import os
 import json
 import html
 import io
