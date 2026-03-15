@@ -1,5 +1,307 @@
-(function(){
-  const site_id = document.currentScript.getAttribute('data-site-id');
+import os
+import json
+import logging
+
+from fastapi import FastAPI, Request, Response
+from dotenv import load_dotenv
+from openai import AsyncOpenAI
+import redis.asyncio as redis
+from tavily import TavilyClient
+
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
+
+# =========================
+# CONFIG
+# =========================
+load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+)
+logger = logging.getLogger("Nexora")
+
+APP_NAME = os.getenv("APP_NAME", "Nexora")
+BASE_URL = os.getenv("BASE_URL", "").rstrip("/")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+REDIS_URL = os.getenv("REDIS_URL")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+OWNER_ID_RAW = os.getenv("OWNER_ID", "0")
+OWNER_ID = int(OWNER_ID_RAW) if OWNER_ID_RAW.isdigit() else 0
+
+# =========================
+# CLIENTES SEGUROS
+# =========================
+client = None
+r = None
+tavily = None
+tg_app = None
+
+if not OPENAI_API_KEY:
+    logger.warning("⚠️ OPENAI_API_KEY no configurada. IA desactivada.")
+else:
+    try:
+        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+    except Exception as e:
+        logger.warning(f"⚠️ No se pudo inicializar OpenAI: {e}")
+        client = None
+
+if not REDIS_URL:
+    logger.warning("⚠️ REDIS_URL no configurada. Memoria desactivada.")
+else:
+    try:
+        r = redis.from_url(REDIS_URL, decode_responses=True)
+    except Exception as e:
+        logger.warning(f"⚠️ No se pudo inicializar Redis: {e}")
+        r = None
+
+if not TAVILY_API_KEY:
+    logger.warning("⚠️ TAVILY_API_KEY no configurada. Búsqueda web desactivada.")
+else:
+    try:
+        tavily = TavilyClient(api_key=TAVILY_API_KEY)
+    except Exception as e:
+        logger.warning(f"⚠️ No se pudo inicializar Tavily: {e}")
+        tavily = None
+
+if not BOT_TOKEN:
+    logger.warning("⚠️ BOT_TOKEN no configurado. Telegram desactivado.")
+
+# =========================
+# APP
+# =========================
+app = FastAPI(title=APP_NAME)
+
+MAX_CHAT_HISTORY = 12
+
+# =========================
+# MEMORIA / RATE LIMIT (TOLERANTE)
+# =========================
+async def check_rate_limit(user_id: str) -> bool:
+    if r is None:
+        return True
+    try:
+        key = f"rate_limit:{user_id}"
+        count = await r.incr(key)
+        if count == 1:
+            await r.expire(key, 60)
+        return count <= 8
+    except Exception as e:
+        logger.warning(f"Rate limit desactivado por error Redis: {e}")
+        return True
+
+async def save_chat_memory(user_id: str, role: str, content: str) -> None:
+    if r is None:
+        return
+    try:
+        await r.rpush(f"chat:{user_id}", json.dumps({"role": role, "content": content}))
+        await r.ltrim(f"chat:{user_id}", -MAX_CHAT_HISTORY, -1)
+    except Exception as e:
+        logger.warning(f"No se pudo guardar memoria: {e}")
+
+async def load_chat_memory(user_id: str):
+    if r is None:
+        return []
+    try:
+        history_raw = await r.lrange(f"chat:{user_id}", 0, -1)
+        return [json.loads(m) for m in history_raw]
+    except Exception as e:
+        logger.warning(f"No se pudo cargar memoria: {e}")
+        return []
+
+async def reset_memory(user_id: str) -> None:
+    if r is None:
+        return
+    try:
+        await r.delete(f"chat:{user_id}")
+    except Exception as e:
+        logger.warning(f"No se pudo reiniciar memoria: {e}")
+
+# =========================
+# WEB SEARCH (TOLERANTE)
+# =========================
+async def search_web(query: str):
+    if tavily is None:
+        return [{"error": "Búsqueda web desactivada"}]
+    try:
+        result = tavily.search(query=query, max_results=3)
+        return [
+            {
+                "title": item.get("title", ""),
+                "url": item.get("url", ""),
+                "snippet": item.get("content", ""),
+            }
+            for item in result.get("results", [])
+        ]
+    except Exception as e:
+        logger.warning(f"Error buscando en web: {e}")
+        return [{"error": f"Error de búsqueda: {e}"}]
+
+# =========================
+# IA (TOLERANTE)
+# =========================
+async def ask_nexora(user_id: str, text: str, channel: str) -> str:
+    if client is None:
+        return "⚠️ OpenAI no está configurado ahora mismo."
+
+    if not await check_rate_limit(user_id):
+        return "⚠️ Límite de mensajes alcanzado. Espera un minuto."
+
+    history = await load_chat_memory(user_id)
+
+    try:
+        response = await client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=history + [{"role": "user", "content": text}],
+            max_tokens=500,
+        )
+        answer = response.choices[0].message.content or "No pude generar respuesta."
+    except Exception as e:
+        logger.error(f"Error OpenAI: {e}")
+        return "⚠️ Hubo un problema generando la respuesta."
+
+    await save_chat_memory(user_id, "user", text)
+    await save_chat_memory(user_id, "assistant", answer)
+    return answer
+
+# =========================
+# TELEGRAM (HANDLERS MÍNIMOS)
+# =========================
+async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
+        return
+    if update.message:
+        await update.message.reply_text("✅ Nexora está activa.")
+
+async def tg_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
+        return
+    if update.message:
+        await update.message.reply_text("Nexora status: activa.")
+
+async def tg_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
+        return
+    if update.effective_user:
+        await reset_memory(str(update.effective_user.id))
+    if update.message:
+        await update.message.reply_text("Memoria reiniciada.")
+
+async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
+        return
+    if update.message and update.message.text:
+        reply = await ask_nexora(str(update.effective_user.id), update.message.text, "telegram")
+        await update.message.reply_text(reply)
+
+# =========================
+# STARTUP / SHUTDOWN (SEGURO)
+# =========================
+@app.on_event("startup")
+async def startup():
+    global r, tg_app
+
+    if r is not None:
+        try:
+            await r.ping()
+            logger.info("✅ Redis conectado")
+        except Exception as e:
+            logger.warning(f"⚠️ Redis no disponible al startup: {e}")
+            r = None
+
+    if BOT_TOKEN:
+        try:
+            tg_app = ApplicationBuilder().token(BOT_TOKEN).build()
+            tg_app.add_handler(CommandHandler("start", tg_start))
+            tg_app.add_handler(CommandHandler("status", tg_status))
+            tg_app.add_handler(CommandHandler("reset", tg_reset))
+            tg_app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_telegram))
+
+            await tg_app.initialize()
+            await tg_app.start()
+
+            if BASE_URL:
+                await tg_app.bot.set_webhook(url=f"{BASE_URL}/tg/{BOT_TOKEN}")
+
+            logger.info("✅ Telegram activo")
+        except Exception as e:
+            logger.warning(f"⚠️ Telegram no pudo iniciar: {e}")
+            tg_app = None
+
+@app.on_event("shutdown")
+async def shutdown():
+    global tg_app, r
+
+    try:
+        if tg_app:
+            if BASE_URL:
+                await tg_app.bot.delete_webhook()
+            await tg_app.stop()
+            await tg_app.shutdown()
+    except Exception as e:
+        logger.warning(f"⚠️ Error apagando Telegram: {e}")
+
+    try:
+        if r:
+            await r.close()
+    except Exception as e:
+        logger.warning(f"⚠️ Error cerrando Redis: {e}")
+
+# =========================
+# ROUTES
+# =========================
+@app.get("/")
+async def home():
+    return {"app": APP_NAME, "status": "online", "model": MODEL_NAME}
+
+@app.get("/health")
+async def health():
+    redis_ok = False
+    try:
+        if r:
+            await r.ping()
+            redis_ok = True
+    except Exception:
+        redis_ok = False
+
+    return {
+        "status": "ok",
+        "redis": redis_ok,
+        "openai": client is not None,
+        "tavily": tavily is not None,
+        "telegram": tg_app is not None,
+    }
+
+@app.post("/tg/{token}")
+async def tg_webhook(token: str, request: Request):
+    if not BOT_TOKEN or token != BOT_TOKEN:
+        return {"ok": False, "error": "token inválido"}
+
+    if tg_app is None:
+        return {"ok": False, "error": "telegram no iniciado"}
+
+    data = await request.json()
+    update = Update.de_json(data, tg_app.bot)
+    await tg_app.process_update(update)
+    return {"ok": True}# core/memory_store.py
+
+async def save_long_memory(user_id, memory):
+    return None
+
+async def load_long_memory(user_id):
+    return None(function(){
+  const site_id = document.currentScript.getAttribute('data-site-id');# core/__init__.py
   let visitor_id = localStorage.getItem(site_id+"_visitor");
   if (!visitor_id) {
     const name = prompt("¿Cómo te llamas?");
