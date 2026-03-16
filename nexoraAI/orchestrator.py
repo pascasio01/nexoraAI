@@ -38,7 +38,17 @@ class Orchestrator:
         return self.blueprint
 
     def plan_goal_workflow(self, user_goal: str, budget_usd: int | None = None) -> Dict[str, Any]:
-        """Return an action plan that models multi-step reasoning + execution orchestration."""
+        """
+        Build an orchestrated execution plan for a user goal.
+
+        Args:
+            user_goal: Natural-language objective (for example, trip planning).
+            budget_usd: Optional integer budget constraint in USD.
+
+        Returns:
+            A dictionary containing constraints, orchestrator phases, and a
+            concrete sample workflow mapping intent into executable steps.
+        """
         constraints = {"budget_usd": budget_usd} if budget_usd is not None else {}
         return {
             "goal": user_goal,
@@ -251,7 +261,7 @@ class Orchestrator:
                         "DELETE /v1/memory/{memory_id}",
                         "GET /v1/audit/actions",
                     ],
-                    "websocket": "ws://.../v1/realtime?user_id={user_id}&device_id={device_id}&session_id={session_id}",
+                    "websocket": "wss://.../v1/realtime?user_id={user_id}&device_id={device_id}&session_id={session_id}",
                 },
                 "websocket_contract": {
                     "envelope": ["event", "conversation_id", "session_id", "timestamp", "payload"],
