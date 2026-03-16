@@ -47,7 +47,12 @@ class OrchestratorFoundationTests(unittest.TestCase):
     def test_multi_channel_dispatch(self):
         orchestrator = Orchestrator()
         sent = []
-        orchestrator.register_channel("telegram", lambda user_id, message: sent.append((user_id, message)) or "ok")
+
+        def telegram_sender(user_id, message):
+            sent.append((user_id, message))
+            return "ok"
+
+        orchestrator.register_channel("telegram", telegram_sender)
 
         output = orchestrator.send_message("telegram", "u2", "hola")
 
@@ -56,6 +61,7 @@ class OrchestratorFoundationTests(unittest.TestCase):
 
     def test_validation_errors_for_unregistered_components(self):
         orchestrator = Orchestrator()
+        orchestrator.remember("u3", "assistant:seed")
 
         with self.assertRaisesRegex(ValueError, "No personal agent"):
             orchestrator.run_personal_agent("u3", "hi")
@@ -65,6 +71,8 @@ class OrchestratorFoundationTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "Channel 'sms'"):
             orchestrator.send_message("sms", "u3", "hi")
+
+        self.assertEqual(orchestrator.recall("u3", limit=0), [])
 
 
 if __name__ == "__main__":

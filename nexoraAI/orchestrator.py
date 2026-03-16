@@ -65,8 +65,10 @@ class Orchestrator:
 
     def recall(self, user_id: str, limit: Optional[int] = None) -> List[str]:
         memories = self._memory.get(user_id, [])
-        if limit is None or limit >= len(memories):
+        if limit is None:
             return list(memories)
+        if limit <= 0:
+            return []
         return memories[-limit:]
 
     # Tools
