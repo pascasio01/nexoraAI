@@ -1,3 +1,5 @@
+import html
+
 from fastapi import APIRouter, Form, Response
 
 from ai_core import ask_nexora
@@ -54,8 +56,9 @@ async def realtime_events_contract():
 @router.post("/whatsapp")
 async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
     answer = await ask_nexora(From, Body, "WhatsApp")
+    safe_answer = html.escape(answer)
     twiml = f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <Response>
-    <Message>{answer}</Message>
+    <Message>{safe_answer}</Message>
 </Response>"""
     return Response(content=twiml, media_type="application/xml")

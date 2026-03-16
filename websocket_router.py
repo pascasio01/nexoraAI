@@ -109,7 +109,10 @@ async def _websocket_handler(websocket: WebSocket, room_id: str | None) -> None:
                 )
                 continue
 
-            text = str((incoming.get("data") or {}).get("text") or "").strip()
+            payload_data = incoming.get("data")
+            text = ""
+            if isinstance(payload_data, dict):
+                text = str(payload_data.get("text") or "").strip()
             if not text:
                 await manager.send_to_connection(
                     connection_id,
@@ -127,8 +130,8 @@ async def _websocket_handler(websocket: WebSocket, room_id: str | None) -> None:
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected user=%s session=%s", context.user_id, context.session_id)
-    except Exception as exc:
-        logger.exception("WebSocket error user=%s session=%s error=%s", context.user_id, context.session_id, exc)
+    except Exception:
+        logger.exception("WebSocket error user=%s session=%s", context.user_id, context.session_id)
         await manager.send_to_connection(
             connection_id,
             build_event("error", context, {"message": "Internal realtime error"}).model_dump(),

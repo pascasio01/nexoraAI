@@ -22,7 +22,12 @@ class RealtimeFoundationTests(unittest.TestCase):
             self.assertEqual(first_event["data"]["state"], "idle")
 
             ws.send_json({"event": "message.user", "data": {"text": "hello realtime"}})
-            events = [ws.receive_json() for _ in range(7)]
+            events = []
+            for _ in range(20):
+                event = ws.receive_json()
+                events.append(event)
+                if event["event"] == "assistant.state" and event["data"].get("state") == "idle":
+                    break
             event_types = [event["event"] for event in events]
 
             self.assertIn("message.user", event_types)

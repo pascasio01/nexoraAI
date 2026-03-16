@@ -22,7 +22,10 @@ async def ask_nexora(user_id: str, text: str, channel: str = "Web") -> str:
     await save_chat_memory(user_id, "user", text)
 
     if not client:
-        reply = f"[{channel}] {APP_NAME}: {text}"
+        reply = (
+            f"{APP_NAME} está activa en modo local. "
+            "Configura OPENAI_API_KEY para respuestas generativas completas."
+        )
         await save_chat_memory(user_id, "assistant", reply)
         return reply
 

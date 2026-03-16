@@ -1,10 +1,13 @@
 from fastapi import Request
 
 from config import BOT_TOKEN
+from config import logger
 
 
 async def telegram_startup() -> None:
+    # Placeholder lifecycle hook. Webhook mode can be expanded here without changing app wiring.
     if not BOT_TOKEN:
+        logger.info("Telegram disabled: BOT_TOKEN not configured.")
         return
 
 
