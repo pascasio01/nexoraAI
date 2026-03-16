@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import html
+
 from config import settings
 from tools_impl import ToolExecutor
+
+MAX_SAFE_MESSAGE_LENGTH = 500
 
 
 class AgentManager:
@@ -45,7 +49,8 @@ class AgentManager:
         if not self.openai_client:
             prefix = "[safe-fallback]"
             details = f"channel={channel}; profile={'set' if profile else 'empty'}; ltm={len(long_term)}"
-            return f"{prefix} {details}. You said: {message}"
+            safe_message = html.escape(message.strip())[:MAX_SAFE_MESSAGE_LENGTH]
+            return f"{prefix} {details}. You said: {safe_message}"
 
         history = self.memory_store.get_history(user_id)
         prompt = (

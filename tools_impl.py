@@ -54,6 +54,10 @@ class ToolExecutor:
             "payload": payload,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(settings.action_webhook_url, json=body)
-        return {"ok": True, "status_code": response.status_code}
+        try:
+            async with httpx.AsyncClient(timeout=20) as http_client:
+                response = await http_client.post(settings.action_webhook_url, json=body)
+                response.raise_for_status()
+            return {"ok": True, "status_code": response.status_code}
+        except httpx.HTTPError as exc:
+            return {"ok": False, "message": f"Webhook request failed: {exc}"}

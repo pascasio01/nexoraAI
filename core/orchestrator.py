@@ -12,7 +12,7 @@ logger = logging.getLogger("Nexora")
 
 
 async def run_agents(user_id: str, user_text: str):
-    """Orquesta el flujo de agentes para generar respuestas contextuales."""
+    """Asynchronously orchestrates the agent flow to generate contextual responses."""
     try:
         route = await supervisor_agent(user_text)
 

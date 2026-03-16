@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from app import app
 
 
-class SoraFoundationTests(unittest.TestCase):
+class TestSoraFoundationIntegration(unittest.TestCase):
     def test_safe_startup_health(self):
         with TestClient(app) as client:
             data = client.get("/health").json()

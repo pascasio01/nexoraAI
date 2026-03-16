@@ -78,9 +78,13 @@ async def execute_tool(req: ToolRequest, request: Request):
 
 
 @router.post("/whatsapp")
-async def whatsapp_webhook(request: Request, Body: str = Form(...), From: str = Form(...)):
+async def whatsapp_webhook(
+    request: Request,
+    body: str = Form(..., alias="Body"),
+    from_field: str = Form(..., alias="From"),
+):
     manager = request.app.state.agent_manager
-    answer = await manager.route_request(user_id=From, message=Body, channel="whatsapp")
+    answer = await manager.route_request(user_id=from_field, message=body, channel="whatsapp")
     return {"ok": True, "reply": answer}
 
 
