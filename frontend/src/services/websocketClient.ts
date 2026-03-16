@@ -5,6 +5,7 @@ type Handler<T = unknown> = (event: RealtimeEnvelope<T>) => void;
 interface WebSocketClientOptions {
   maxReconnectAttempts?: number;
   reconnectDelayMs?: number;
+  onConnectionStatusChange?: (status: "disconnected" | "connecting" | "connected") => void;
 }
 
 export class WebSocketClient {
@@ -27,12 +28,12 @@ export class WebSocketClient {
     }
 
     this.manuallyClosed = false;
+    this.options.onConnectionStatusChange?.("connecting");
     this.ws = new WebSocket(this.url);
-    this.emit("*", { type: "assistant.state", data: { state: "idle" } });
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
-      this.emit("*", { type: "typing.stop" });
+      this.options.onConnectionStatusChange?.("connected");
     };
 
     this.ws.onmessage = (event) => {
@@ -45,10 +46,12 @@ export class WebSocketClient {
     };
 
     this.ws.onerror = () => {
+      this.options.onConnectionStatusChange?.("disconnected");
       this.emit("error", { type: "error", data: { message: "WebSocket connection error." } });
     };
 
     this.ws.onclose = () => {
+      this.options.onConnectionStatusChange?.("disconnected");
       if (this.manuallyClosed) {
         return;
       }
@@ -72,6 +75,7 @@ export class WebSocketClient {
   disconnect(): void {
     this.manuallyClosed = true;
     this.ws?.close();
+    this.options.onConnectionStatusChange?.("disconnected");
     this.ws = null;
   }
 
@@ -106,8 +110,8 @@ export class WebSocketClient {
 
   private safeParse(raw: string): RealtimeEnvelope | null {
     try {
-      const parsed = JSON.parse(raw) as RealtimeEnvelope;
-      if (!parsed?.type) {
+      const parsed: unknown = JSON.parse(raw);
+      if (!isRealtimeEnvelope(parsed)) {
         this.emit("error", { type: "error", data: { message: "Realtime event missing type." } });
         return null;
       }
@@ -121,4 +125,20 @@ export class WebSocketClient {
   private emit<T = unknown>(event: RealtimeEventType | "*", payload: RealtimeEnvelope<T>): void {
     this.listeners.get(event)?.forEach((handler) => handler(payload));
   }
+}
+
+function isRealtimeEnvelope(value: unknown): value is RealtimeEnvelope {
+  if (!value || typeof value !== "object" || !("type" in value)) {
+    return false;
+  }
+
+  const type = (value as { type?: unknown }).type;
+  return (
+    type === "message.user" ||
+    type === "message.assistant" ||
+    type === "assistant.state" ||
+    type === "typing.start" ||
+    type === "typing.stop" ||
+    type === "error"
+  );
 }

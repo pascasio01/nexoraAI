@@ -4,7 +4,7 @@
 
 The repository now includes a Next.js realtime web UI at:
 
-- `/home/runner/work/nexoraAI/nexoraAI/frontend`
+- `./frontend`
 
 ### Run locally
 

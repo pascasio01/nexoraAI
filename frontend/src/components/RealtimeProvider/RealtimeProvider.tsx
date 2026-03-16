@@ -28,6 +28,10 @@ interface RealtimeContextValue extends AssistantUIState {
 
 const RealtimeContext = createContext<RealtimeContextValue | null>(null);
 
+function generateMessageId(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID()}`;
+}
+
 function buildRealtimeUrl(): string {
   const explicitUrl = process.env.NEXT_PUBLIC_WS_URL;
   if (explicitUrl) {
@@ -48,11 +52,15 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
   });
 
   const socketRef = useRef<WebSocketClient | null>(null);
+  const visitorIdRef = useRef<string>(generateMessageId("visitor"));
 
   useEffect(() => {
     const socket = new WebSocketClient(buildRealtimeUrl(), {
       maxReconnectAttempts: 8,
       reconnectDelayMs: 1200,
+      onConnectionStatusChange: (connectionStatus) => {
+        setState((previous) => ({ ...previous, connectionStatus }));
+      },
     });
 
     socketRef.current = socket;
@@ -68,15 +76,17 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       }
       setState((previous) => ({
         ...previous,
-        messages: [
-          ...previous.messages,
-          {
-            id: event.data?.id ?? `user-${Date.now()}`,
-            role: "user",
-            content,
-            createdAt: new Date().toISOString(),
-          },
-        ],
+        messages: previous.messages.some((message) => message.id === event.data?.id)
+          ? previous.messages
+          : [
+              ...previous.messages,
+              {
+                id: event.data?.id ?? generateMessageId("user"),
+                role: "user",
+                content,
+                createdAt: new Date().toISOString(),
+              },
+            ],
       }));
     });
 
@@ -122,19 +132,6 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       setState((previous) => ({ ...previous, error: message, typing: false }));
     });
 
-    const handleConnectionHints = socket.on("*", () => {
-      const readyState = socket.getReadyState();
-      setState((previous) => ({
-        ...previous,
-        connectionStatus:
-          readyState === WebSocket.OPEN
-            ? "connected"
-            : readyState === WebSocket.CONNECTING
-              ? "connecting"
-              : "disconnected",
-      }));
-    });
-
     socket.connect();
 
     return () => {
@@ -145,7 +142,6 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
       handleTypingStart();
       handleTypingStop();
       handleError();
-      handleConnectionHints();
       socket.disconnect();
       socketRef.current = null;
     };
@@ -160,12 +156,30 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
           return;
         }
 
+        const messageId = generateMessageId("user-local");
+        const messageSent = socketRef.current?.send({
+          type: "message.user",
+          id: messageId,
+          visitor_id: visitorIdRef.current,
+          content: message,
+          timestamp: new Date().toISOString(),
+        });
+
+        if (!messageSent) {
+          setState((previous) => ({
+            ...previous,
+            error: "Message was not sent. Realtime connection is not ready.",
+            typing: false,
+          }));
+          return;
+        }
+
         setState((previous) => ({
           ...previous,
           messages: [
             ...previous.messages,
             {
-              id: `user-local-${Date.now()}`,
+              id: messageId,
               role: "user",
               content: message,
               createdAt: new Date().toISOString(),
@@ -174,13 +188,6 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
           assistantState: "thinking",
           typing: true,
         }));
-
-        socketRef.current?.send({
-          type: "message.user",
-          visitor_id: "web_user",
-          content: message,
-          timestamp: new Date().toISOString(),
-        });
       },
       toggleVoicePlaceholder: () => {
         setState((previous) => ({
