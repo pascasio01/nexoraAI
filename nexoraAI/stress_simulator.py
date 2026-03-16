@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 import math
 import random
@@ -127,8 +128,8 @@ class SimulationEngine:
 
         def quantiles(values):
             ordered = sorted(values)
-            lower = ordered[max(0, math.floor(len(ordered) * 0.1) - 1)]
-            upper = ordered[min(len(ordered) - 1, math.ceil(len(ordered) * 0.9) - 1)]
+            lower = ordered[min(len(ordered) - 1, max(0, int((len(ordered) - 1) * 0.1)))]
+            upper = ordered[min(len(ordered) - 1, max(0, int((len(ordered) - 1) * 0.9)))]
             expected = sum(ordered) / len(ordered)
             return lower, expected, upper
 
@@ -236,6 +237,11 @@ class ResultFormatter:
     def _rounded_case(case_values):
         return {key: round(value, 2) for key, value in case_values.items()}
 
+    @staticmethod
+    def _currency(amount):
+        rounded = round(amount, 2)
+        return f"-${abs(rounded)}" if rounded < 0 else f"${rounded}"
+
     def format(self, scenario, raw_result, score, urgency, recommendations, confidence_score):
         probability_range = scenario["assumptions"].get("probability_range", [0.0, 0.0])
         baseline = raw_result["evidence"]["baseline"]
@@ -257,8 +263,8 @@ class ResultFormatter:
             "confidence_score": round(confidence_score, 2),
             "evidence_inputs_used": raw_result["evidence"],
             "executive_summary": (
-                f"{scenario['name']} is projected to change monthly cash flow by {expected['cash_flow_delta']} "
-                f"with operational delta {expected['operations_delta']} and asset value delta {expected['asset_value_delta']}."
+                f"{scenario['name']} is projected to change monthly cash flow by {self._currency(expected['cash_flow_delta'])}, "
+                f"operations by {round(expected['operations_delta'] * 100, 2)}%, and asset value by {self._currency(expected['asset_value_delta'])}."
             ),
             "risk_to_cash_flow": risk_to_cash_flow,
             "risk_to_operations": risk_to_operations,
@@ -272,9 +278,10 @@ class ResultFormatter:
 class AuditLogger:
     @staticmethod
     def record(simulation_request, output):
+        request_payload = json.dumps(simulation_request, sort_keys=True, default=str).encode("utf-8")
         return {
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "input_hash": hash(json.dumps(simulation_request, sort_keys=True, default=str)),
+            "input_hash": hashlib.sha256(request_payload).hexdigest(),
             "scenario_count": len(output.get("scenarios", [])),
             "has_not_enough_data": bool(output.get("not_enough_data")),
         }

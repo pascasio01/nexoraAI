@@ -22,7 +22,7 @@ class StressSimulatorTests(unittest.TestCase):
             "insurance_costs": {"monthly_premium": 1800},
             "regulatory_exposure": {"sector": "utilities"},
             "scenarios": [
-                {"type": "interest_rate_increase", "name": "Rate +150bps", "mode": "monte_carlo", "iterations": 120},
+                {"type": "interest_rate_increase", "name": "Rate +150 basis points", "mode": "monte_carlo", "iterations": 250},
                 {"type": "equipment_failure", "name": "Main compressor failure", "mode": "deterministic"},
                 {"type": "delayed_payment", "name": "Top tenant delays", "mode": "parameter_stress", "assumptions": {"stress_multipliers": {"cash_flow": 1.25}}},
                 {"type": "material_cost_inflation", "name": "Steel and parts inflation", "mode": "deterministic"},
