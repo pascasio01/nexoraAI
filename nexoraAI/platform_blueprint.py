@@ -42,6 +42,7 @@ def build_platform_blueprint() -> dict[str, Any]:
             "transport": "TLS everywhere, websocket auth tokens, strict origin checks.",
             "message_protection": "Envelope model with encrypted_payload slot and metadata separation.",
             "mvp_crypto": "Server-managed encryption-at-rest + per-room key version metadata.",
+            "envelope_note": "encrypted_payload is present from day one so clients can migrate to end-to-end encryption without schema breaks.",
             "e2ee_path": [
                 "Introduce device key bundles and signed prekeys",
                 "Move content encryption to clients with double-ratchet-compatible envelopes",
@@ -101,7 +102,8 @@ def build_platform_blueprint() -> dict[str, Any]:
                 "room_id",
                 "sender_user_id",
                 "encrypted_payload",
-                "plaintext_preview_optional",
+                "optional_searchable_metadata",
+                "metadata_policy_ref:root.metadata_policy",
                 "attachment_refs",
                 "state",
                 "created_at",
@@ -195,6 +197,7 @@ def build_platform_blueprint() -> dict[str, Any]:
                 "local_file_relay",
             ],
         },
+        "metadata_policy": "Optional searchable metadata must be content-free (never plaintext excerpts) and disabled for private/high-security rooms.",
         "risks_and_mitigations": [
             {
                 "risk": "Realtime event inconsistency across devices",

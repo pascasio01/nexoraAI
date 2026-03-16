@@ -4,8 +4,12 @@ from nexoraAI.orchestrator import Orchestrator
 
 
 class PlatformBlueprintTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.blueprint = Orchestrator().platform_blueprint()
+
     def test_blueprint_contains_required_realtime_events(self):
-        blueprint = Orchestrator().platform_blueprint()
+        blueprint = self.blueprint
         events = set(blueprint["realtime_contracts"]["events"])
 
         self.assertTrue(
@@ -23,7 +27,7 @@ class PlatformBlueprintTests(unittest.TestCase):
         )
 
     def test_blueprint_security_and_transfer_foundation(self):
-        blueprint = Orchestrator().platform_blueprint()
+        blueprint = self.blueprint
         security = blueprint["security_architecture"]
         transfer = blueprint["file_transfer_architecture"]
 
@@ -35,7 +39,7 @@ class PlatformBlueprintTests(unittest.TestCase):
         self.assertIn("qr_pairing", transfer["future_interfaces"])
 
     def test_blueprint_data_model_and_ids_for_continuity(self):
-        blueprint = Orchestrator().platform_blueprint()
+        blueprint = self.blueprint
         continuity = blueprint["identity_and_continuity"]
         models = blueprint["data_model_suggestions"]
 
