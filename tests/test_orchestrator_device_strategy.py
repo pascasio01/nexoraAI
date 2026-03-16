@@ -4,7 +4,7 @@ from nexoraAI.orchestrator import Orchestrator
 
 
 class OrchestratorDeviceStrategyTests(unittest.TestCase):
-    def test_start_returns_running_state_and_blueprint(self):
+    def test_start_returns_running_status_and_blueprint(self):
         orchestrator = Orchestrator()
 
         payload = orchestrator.start()
@@ -24,4 +24,3 @@ class OrchestratorDeviceStrategyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

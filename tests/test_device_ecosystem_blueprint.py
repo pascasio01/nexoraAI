@@ -36,6 +36,7 @@ class DeviceEcosystemBlueprintTests(unittest.TestCase):
         self.assertIn("agent-to-agent federation network", defer_for_later)
         self.assertGreaterEqual(len(add_now), 5)
         self.assertGreaterEqual(len(defer_for_later), 4)
+        self.assertTrue(set(add_now).isdisjoint(set(defer_for_later)))
 
     def test_blueprint_has_multi_phase_roadmap(self):
         roadmap = build_device_ecosystem_blueprint()["roadmap"]
@@ -49,4 +50,3 @@ class DeviceEcosystemBlueprintTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
