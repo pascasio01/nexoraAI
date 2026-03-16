@@ -3,7 +3,7 @@ import io
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import httpx
@@ -125,7 +125,7 @@ async def execute_action(action_name: str, details: dict):
                 "action": action_name,
                 "user_id": OWNER_ID,
                 "agent": APP_NAME,
-                "data": {**details, "timestamp": datetime.utcnow().isoformat()},
+                "data": {**details, "timestamp": datetime.now(timezone.utc).isoformat()},
             }
             res = await client_http.post(ACTION_WEBHOOK_URL, json=payload)
             return f"Acción '{action_name}' enviada. Estado: {res.status_code}"
@@ -366,19 +366,18 @@ async def reset_web(req: ChatRequest):
 
 @app.post("/whatsapp")
 async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
+    def _build_twiml_response(message: str) -> Response:
+        twiml = f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<Response>
+    <Message>{html.escape(message)}</Message>
+</Response>"""
+        return Response(content=twiml, media_type="application/xml")
+
     try:
         answer = await ask_nexora(From, Body, "WhatsApp")
-        twiml = f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<Response>
-    <Message>{html.escape(answer)}</Message>
-</Response>"""
-        return Response(content=twiml, media_type="application/xml")
+        return _build_twiml_response(answer)
     except Exception as e:
-        twiml = f"""<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<Response>
-    <Message>{html.escape(str(e))}</Message>
-</Response>"""
-        return Response(content=twiml, media_type="application/xml")
+        return _build_twiml_response(str(e))
 
 
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
