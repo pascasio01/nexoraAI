@@ -25,6 +25,13 @@ Guidelines:
 """.strip()
 
 
+def _log_background_task_failure(task: asyncio.Task) -> None:
+    try:
+        task.result()
+    except Exception as exc:
+        logger.warning(f"Background profile update failed: {exc}")
+
+
 async def _update_user_profile(user_id: str, last_interaction: str) -> None:
     if deps.client is None:
         return
@@ -136,5 +143,7 @@ async def ask_nexora(user_id: str, text: str, channel: str) -> str:
 
     await save_chat_memory(user_id, "user", text)
     await save_chat_memory(user_id, "assistant", answer)
-    asyncio.create_task(_update_user_profile(user_id, text))
+    interaction = f"User: {text}\nAssistant: {answer}"
+    task = asyncio.create_task(_update_user_profile(user_id, interaction))
+    task.add_done_callback(_log_background_task_failure)
     return answer

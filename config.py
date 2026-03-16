@@ -23,7 +23,9 @@ BASE_URL = os.getenv("BASE_URL", "").rstrip("/")
 ACTION_WEBHOOK_URL = os.getenv("ACTION_WEBHOOK_URL")
 
 OWNER_ID_RAW = os.getenv("OWNER_ID", "0")
-OWNER_ID = int(OWNER_ID_RAW) if OWNER_ID_RAW.isdigit() else 0
+_owner_id_int = int(OWNER_ID_RAW) if OWNER_ID_RAW.isdigit() else 0
+OWNER_ID = _owner_id_int if _owner_id_int > 0 else None
+ALLOW_ALL_USERS = os.getenv("ALLOW_ALL_USERS", "false").lower() in {"1", "true", "yes", "on"}
 
 CREATOR_NAME = os.getenv("CREATOR_NAME", "Pascasio Emmanuel Reynoso Reyes")
 CREATOR_ALIAS = os.getenv("CREATOR_ALIAS", "Emmanuel Reynoso")

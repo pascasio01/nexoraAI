@@ -8,6 +8,7 @@ import deps
 _memory = defaultdict(list)
 _profiles = {}
 _rate_limits = defaultdict(deque)
+RATE_LIMIT_WINDOW_SECONDS = 60
 
 
 async def check_rate_limit(user_id: str) -> bool:
@@ -23,7 +24,7 @@ async def check_rate_limit(user_id: str) -> bool:
 
     now = time.time()
     queue = _rate_limits[user_id]
-    while queue and now - queue[0] > 60:
+    while queue and now - queue[0] > RATE_LIMIT_WINDOW_SECONDS:
         queue.popleft()
     queue.append(now)
     return len(queue) <= RATE_LIMIT_PER_MINUTE

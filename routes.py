@@ -1,7 +1,7 @@
 import html
 import time
 
-from fastapi import APIRouter, Form, Response
+from fastapi import APIRouter, Form, Request, Response
 
 from ai_core import ask_nexora
 from config import APP_NAME, ENVIRONMENT, MODEL_NAME
@@ -12,6 +12,11 @@ import telegram_actor
 
 router = APIRouter()
 _started_at = time.time()
+
+
+def mark_started() -> None:
+    global _started_at
+    _started_at = time.time()
 
 
 @router.get("/")
@@ -63,5 +68,5 @@ async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
 
 
 @router.post("/tg/{token}")
-async def tg_webhook(token: str, request):
+async def tg_webhook(token: str, request: Request):
     return await telegram_actor.telegram_webhook(token, request)

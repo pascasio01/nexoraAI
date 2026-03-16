@@ -45,8 +45,8 @@ async def execute_action(action_name: str, details: dict, user_id: str):
     }
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client_http:
-            response = await client_http.post(ACTION_WEBHOOK_URL, json=payload)
+        async with httpx.AsyncClient(timeout=15) as http_client:
+            response = await http_client.post(ACTION_WEBHOOK_URL, json=payload)
             return {"ok": response.is_success, "status_code": response.status_code}
     except Exception as exc:
         return {"ok": False, "message": str(exc)}

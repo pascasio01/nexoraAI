@@ -9,7 +9,15 @@ from telegram.ext import (
 )
 
 from ai_core import ask_nexora
-from config import APP_NAME, BASE_URL, BOT_TOKEN, MODEL_NAME, OWNER_ID, logger
+from config import (
+    ALLOW_ALL_USERS,
+    APP_NAME,
+    BASE_URL,
+    BOT_TOKEN,
+    MODEL_NAME,
+    OWNER_ID,
+    logger,
+)
 from memory import reset_memory
 
 
@@ -17,9 +25,11 @@ tg_app = None
 
 
 def _allowed_user(update: Update) -> bool:
-    if OWNER_ID == 0:
-        return True
-    return bool(update.effective_user and update.effective_user.id == OWNER_ID)
+    if OWNER_ID is None:
+        return ALLOW_ALL_USERS
+    if update.effective_user is None:
+        return False
+    return update.effective_user.id == OWNER_ID
 
 
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -66,7 +76,7 @@ async def telegram_startup() -> None:
         tg_app.add_handler(CommandHandler("start", tg_start))
         tg_app.add_handler(CommandHandler("status", tg_status))
         tg_app.add_handler(CommandHandler("reset", tg_reset))
-        tg_app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_telegram))
+        tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_telegram))
 
         await tg_app.initialize()
         await tg_app.start()
