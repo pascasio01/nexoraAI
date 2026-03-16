@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Form, Request
+from xml.sax.saxutils import escape
+
+from fastapi import APIRouter, Form, Request, Response
 from pydantic import BaseModel
 
 from ai_core import ask_nexora
@@ -59,9 +61,10 @@ async def reset_web(req: ChatRequest):
 
 
 @router.post("/whatsapp")
-async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
-    response = await ask_nexora(From, Body)
-    return {"reply": response}
+async def whatsapp_webhook(message_body: str = Form(..., alias="Body"), sender: str = Form(..., alias="From")):
+    response_text = await ask_nexora(sender, message_body)
+    twiml = f"<Response><Message>{escape(response_text)}</Message></Response>"
+    return Response(content=twiml, media_type="application/xml")
 
 
 @router.post("/tg/{token}")

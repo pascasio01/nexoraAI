@@ -40,7 +40,7 @@ async def execute_action(action_name: str, details: dict) -> str:
         "action": action_name,
         "user_id": OWNER_ID,
         "agent": APP_NAME,
-        "data": {**details, "timestamp": datetime.now(timezone.utc).isoformat()},
+        "data": {**details, "timestamp": datetime.now(tz=timezone.utc).isoformat()},
     }
 
     try:

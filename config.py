@@ -26,10 +26,16 @@ BASE_URL = (os.getenv("BASE_URL") or "").rstrip("/")
 ACTION_WEBHOOK_URL = os.getenv("ACTION_WEBHOOK_URL")
 
 OWNER_ID_RAW = os.getenv("OWNER_ID", "0")
-OWNER_ID = int(OWNER_ID_RAW) if OWNER_ID_RAW.isdigit() else 0
+if OWNER_ID_RAW.isdigit():
+    OWNER_ID = int(OWNER_ID_RAW)
+else:
+    OWNER_ID = 0
+    if OWNER_ID_RAW:
+        logger.warning("OWNER_ID is invalid (%s). Falling back to 0.", OWNER_ID_RAW)
 
 MAX_CHAT_HISTORY = int(os.getenv("MAX_CHAT_HISTORY", "12"))
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "8"))
+AI_TEMPERATURE = float(os.getenv("AI_TEMPERATURE", "0.6"))
 
 
 def is_valid_http_url(value: str) -> bool:
