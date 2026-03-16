@@ -45,7 +45,11 @@ class ConnectionManager:
             self.room_connections.pop(room_key, None)
 
     async def send_json(self, websocket: WebSocket, payload: dict) -> None:
-        await websocket.send_text(json.dumps(payload, ensure_ascii=False))
+        try:
+            await websocket.send_text(json.dumps(payload, ensure_ascii=False))
+        except Exception as exc:  # pragma: no cover - network/runtime condition
+            logger.warning("Failed to send websocket event: %s", exc)
+            self.disconnect(websocket)
 
     async def broadcast(self, context: ConnectionContext, payload: dict) -> None:
         room_key = self._room_key(context)
@@ -114,6 +118,7 @@ async def realtime_websocket(websocket: WebSocket):
             await manager.send_json(websocket, typing_start_event(current_context))
             await manager.send_json(websocket, assistant_state_event(AssistantState.RESPONDING, current_context))
 
+            pending_chunk = None
             async for chunk in stream_nexora_response(
                 user_id=current_context.user_id,
                 text=text,
@@ -123,7 +128,18 @@ async def realtime_websocket(websocket: WebSocket):
                 site_id=current_context.site_id,
                 visitor_id=current_context.visitor_id,
             ):
-                await manager.send_json(websocket, assistant_message_event(chunk, current_context, partial=False))
+                if pending_chunk is not None:
+                    await manager.send_json(
+                        websocket,
+                        assistant_message_event(pending_chunk, current_context, partial=True),
+                    )
+                pending_chunk = chunk
+
+            if pending_chunk is not None:
+                await manager.send_json(
+                    websocket,
+                    assistant_message_event(pending_chunk, current_context, partial=False),
+                )
 
             await manager.send_json(websocket, typing_stop_event(current_context))
             await manager.send_json(websocket, assistant_state_event(AssistantState.IDLE, current_context))

@@ -24,7 +24,7 @@ if REDIS_URL:
     except Exception as exc:  # pragma: no cover - defensive init
         logger.warning("Redis init failed: %s", exc)
 else:
-    logger.warning("REDIS_URL missing. Memory and rate limit are in in-memory fallback mode.")
+    logger.warning("REDIS_URL missing. Memory and rate limit are in-memory fallback mode.")
 
 if TAVILY_API_KEY:
     try:

@@ -9,7 +9,7 @@ async def telegram_startup() -> None:
 
 
 async def telegram_shutdown() -> None:
-    return None
+    pass
 
 
 async def telegram_webhook(token: str, request: Request):

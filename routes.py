@@ -24,7 +24,7 @@ async def health():
         try:
             redis_ok = bool(await r.ping())
         except Exception:
-            redis_ok = False
+            pass
 
     return {
         "ok": True,

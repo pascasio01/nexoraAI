@@ -73,7 +73,12 @@ async def stream_nexora_response(
     site_id: str | None = None,
     visitor_id: str | None = None,
 ) -> AsyncIterator[str]:
-    """Streaming-ready interface. MVP emits one final chunk."""
+    """Streaming-ready interface.
+
+    Current MVP behavior yields one final text chunk. The iterator shape is
+    intentional so token/chunk streaming can be enabled later without changing
+    websocket or route contracts.
+    """
     answer = await ask_nexora(
         user_id=user_id,
         text=text,
