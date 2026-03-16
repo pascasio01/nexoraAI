@@ -33,7 +33,9 @@ class PersonalAgent:
 
     def receive_event(self, event: AgentEvent) -> AgentEvent:
         if event.target_user_id != self.user_id:
-            raise ValueError(f"Event targeted for {event.target_user_id}, not {self.user_id}")
+            raise ValueError(
+                f"Event intended for user {event.target_user_id} cannot be delivered to agent for user {self.user_id}"
+            )
         self.received_events.append(event)
         return event
 
@@ -60,7 +62,7 @@ class Orchestrator:
 
     def send_event(self, event: AgentEvent) -> AgentEvent:
         if not self._is_running:
-            raise RuntimeError("Orchestrator is stopped")
+            raise RuntimeError("Cannot send event: Orchestrator must be started before sending events. Call start() first.")
         target_agent = self.get_or_create_agent(event.target_user_id)
         return target_agent.receive_event(event)
 
