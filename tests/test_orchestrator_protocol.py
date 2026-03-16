@@ -16,7 +16,7 @@ class OrchestratorProtocolTests(unittest.TestCase):
     def test_allows_sensitive_request_with_verified_identity(self):
         response = self.orchestrator.process_request(
             "review endpoint https://example.com",
-            session_context={"identity": "Emmanuel Reynoso", "verified": True},
+            session_context={"identity": self.orchestrator.administrator, "verified": True},
             sensitive=True,
             confirmed=True,
         )

@@ -44,7 +44,7 @@ class Orchestrator:
         findings: list[str] = []
         if re.search(r"\bsk-[A-Za-z0-9]{20,}\b", text):
             findings.append("Potential API key leak detected.")
-        if re.search(r"https?://", text) and "https://" not in text:
+        if re.search(r"http://", text):
             findings.append("Insecure endpoint detected (HTTP).")
 
         if any("leak" in finding.lower() for finding in findings):
@@ -82,7 +82,7 @@ class Orchestrator:
         if sensitive and not verified:
             return self.format_output(
                 "Sensitive operation blocked.",
-                '[NO DATA] I cannot confirm this data with available information. Identity "Emmanuel Reynoso" is not verified in session context.',
+                f'[NO DATA] I cannot confirm this data with available information. Identity "{self.administrator}" is not verified in session context.',
                 "No execution performed.",
                 "Yellow",
             )
