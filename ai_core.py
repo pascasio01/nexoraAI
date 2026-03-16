@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List
 
-from config import APP_NAME, CREATOR_ALIAS, CREATOR_NAME, MODEL_NAME, logger
+from config import APP_NAME, CREATOR_ALIAS, CREATOR_NAME, MODEL_NAME, PROFILE_MAX_LENGTH, logger
 from deps import get_openai_client
 from memory import check_rate_limit, get_profile, load_chat_memory, save_chat_memory, set_profile
 from tools_impl import execute_action, manage_note, search_web
@@ -40,7 +40,7 @@ async def _maybe_update_profile(user_id: str, text: str) -> None:
     if "my name is" in lower or "i am" in lower:
         current = await get_profile(user_id)
         updated = f"{current}\n{text}".strip() if current else text
-        await set_profile(user_id, updated[:1000])
+        await set_profile(user_id, updated[:PROFILE_MAX_LENGTH])
 
 
 async def ask_nexora(user_id: str, text: str, channel: str = "web") -> str:
@@ -55,7 +55,7 @@ async def ask_nexora(user_id: str, text: str, channel: str = "web") -> str:
 
     history = await load_chat_memory(user_id)
     profile = await get_profile(user_id)
-    base_messages: List[Dict[str, str]] = [
+    base_messages: List[Dict[str, Any]] = [
         {
             "role": "system",
             "content": f"{SYSTEM_PROMPT}\nChannel: {channel}\nUser profile: {profile or 'No profile data yet.'}",
@@ -91,7 +91,25 @@ async def ask_nexora(user_id: str, text: str, channel: str = "web") -> str:
         tool_calls = message.tool_calls or []
         conversation: List[Dict[str, Any]] = list(base_messages)
 
-        if message.content:
+        if tool_calls:
+            conversation.append(
+                {
+                    "role": "assistant",
+                    "content": message.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tool_call.id,
+                            "type": "function",
+                            "function": {
+                                "name": tool_call.function.name,
+                                "arguments": tool_call.function.arguments or "{}",
+                            },
+                        }
+                        for tool_call in tool_calls
+                    ],
+                }
+            )
+        elif message.content:
             conversation.append({"role": "assistant", "content": message.content})
 
         for tool_call in tool_calls:

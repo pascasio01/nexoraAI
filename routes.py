@@ -40,7 +40,7 @@ async def health() -> dict:
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
-    user_id = (req.user_id or "web-user").strip() or "web-user"
+    user_id = (req.user_id or "").strip() or "web-user"
     response = await ask_nexora(user_id=user_id, text=req.message, channel=req.channel)
     return ChatResponse(user_id=user_id, response=response)
 

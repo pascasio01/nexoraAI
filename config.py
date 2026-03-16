@@ -44,6 +44,7 @@ CREATOR_ALIAS = os.getenv("CREATOR_ALIAS", "Emmanuel Reynoso").strip() or "Emman
 
 MAX_CHAT_HISTORY = _as_int("MAX_CHAT_HISTORY", 12)
 RATE_LIMIT_PER_MINUTE = _as_int("RATE_LIMIT_PER_MINUTE", 8)
+PROFILE_MAX_LENGTH = _as_int("PROFILE_MAX_LENGTH", 1000)
 
 if not OPENAI_API_KEY:
     logger.warning("OPENAI_API_KEY is not configured. AI responses will use fallback mode.")

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Dict, List
 
 import httpx
@@ -47,13 +47,13 @@ async def execute_action(action_name: str, details: Dict[str, Any]) -> str:
         "action": action_name,
         "agent": APP_NAME,
         "user_id": OWNER_ID,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "data": details,
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20) as client_http:
-            response = await client_http.post(ACTION_WEBHOOK_URL, json=payload)
+        async with httpx.AsyncClient(timeout=20) as http_client:
+            response = await http_client.post(ACTION_WEBHOOK_URL, json=payload)
         return f"Action '{action_name}' sent. Status: {response.status_code}"
     except Exception as exc:
         return f"Action dispatch failed: {exc}"
