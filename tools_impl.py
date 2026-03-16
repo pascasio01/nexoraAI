@@ -48,7 +48,7 @@ async def webhook_action(action_name: str, details: dict | None = None):
         "action": action_name,
         "user_id": OWNER_ID,
         "agent": APP_NAME,
-        "data": {**(details or {}), "timestamp": datetime.now(timezone.utc).isoformat()},
+        "data": {**(details or {}), "generated_timestamp": datetime.now(timezone.utc).isoformat()},
     }
 
     try:

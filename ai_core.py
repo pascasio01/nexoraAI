@@ -86,7 +86,13 @@ async def ask_nexora(user_id: str, text: str, channel: str) -> str:
     msg = response.choices[0].message
 
     if msg.tool_calls:
-        messages.append(msg.model_dump(exclude_none=True))
+        messages.append(
+            {
+                "role": "assistant",
+                "content": msg.content or "",
+                "tool_calls": [tool_call.model_dump(exclude_none=True) for tool_call in msg.tool_calls],
+            }
+        )
 
         for tool_call in msg.tool_calls:
             args = _safe_tool_args(tool_call.function.arguments)
