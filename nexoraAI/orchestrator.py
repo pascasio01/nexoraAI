@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
+
+DEFAULT_AGENT_REGISTRY = [
+    "Memory Agent",
+    "Finance Agent",
+    "Research Agent",
+    "Security Agent",
+    "Device Agent",
+    "Communication Agent",
+    "Infrastructure Agent",
+    "Health Agent",
+]
 
 
 @dataclass(frozen=True)
@@ -18,18 +29,7 @@ class SecurityProfile:
 class Orchestrator:
     running: bool = False
     stage: str = "Stage 1 — conversational assistant"
-    agent_registry: List[str] = field(
-        default_factory=lambda: [
-            "Memory Agent",
-            "Finance Agent",
-            "Research Agent",
-            "Security Agent",
-            "Device Agent",
-            "Communication Agent",
-            "Infrastructure Agent",
-            "Health Agent",
-        ]
-    )
+    agent_registry: List[str] = field(default_factory=lambda: list(DEFAULT_AGENT_REGISTRY))
 
     def start(self) -> None:
         self.running = True
@@ -162,17 +162,11 @@ class Orchestrator:
         }
 
     def build_future_resilient_blueprint(self) -> Dict[str, Any]:
-        security = self.security_framework()
         return {
             "architecture_proposal": self.architecture_proposal(),
             "service_boundaries": self.service_boundaries(),
             "integration_capabilities": self.integration_capabilities(),
-            "security_framework": {
-                "encryption_strategy": security.encryption_strategy,
-                "key_management": security.key_management,
-                "controls": security.controls,
-                "explainability": security.explainability,
-            },
+            "security_framework": asdict(self.security_framework()),
             "multi_agent_orchestration": {
                 "orchestrator": "central orchestrator",
                 "agents": self.agent_registry,
