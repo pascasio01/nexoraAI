@@ -15,10 +15,12 @@ class VoiceStreamHooks:
     """Interface placeholders for future voice streaming."""
 
     async def on_voice_input_chunk(self, room_id: str, session_id: str, chunk_meta: dict[str, Any]) -> None:  # pragma: no cover
-        return None
+        """Handle incoming voice chunk metadata (e.g., sequence, codec, duration)."""
+        pass
 
     async def on_voice_output_chunk(self, room_id: str, session_id: str, chunk_meta: dict[str, Any]) -> None:  # pragma: no cover
-        return None
+        """Handle outgoing synthesized voice chunk metadata for future TTS streaming."""
+        pass
 
 
 class RealtimeConnectionManager:
@@ -54,6 +56,10 @@ voice_hooks = VoiceStreamHooks()
 
 
 def build_event(event_type: str, room_id: str, session_id: str, **data: Any) -> dict[str, Any]:
+    if event_type == "assistant.state":
+        state = data.get("state")
+        if state not in ASSISTANT_STATES:
+            raise ValueError(f"Invalid assistant state: {state}")
     event = {
         "event": event_type,
         "timestamp": datetime.now(timezone.utc).isoformat(),

@@ -10,16 +10,20 @@ class SessionMemory:
 
 
 class MemoryStore:
-    """In-memory fallback compatible with future persistent memory adapters."""
+    """In-memory fallback compatible with future persistent memory adapters.
+
+    Each user gets a bounded deque with up to ``max_messages`` role-tagged entries,
+    preserving context while preventing unbounded memory growth.
+    """
 
     def __init__(self, max_messages: int = 50) -> None:
-        self._history: dict[str, deque[str]] = defaultdict(lambda: deque(maxlen=max_messages))
+        self._history: dict[str, deque[dict[str, str]]] = defaultdict(lambda: deque(maxlen=max_messages))
         self._sessions: dict[str, SessionMemory] = {}
 
-    def add_message(self, user_id: str, message: str) -> None:
-        self._history[user_id].append(message)
+    def add_message(self, user_id: str, role: str, content: str) -> None:
+        self._history[user_id].append({"role": role, "content": content})
 
-    def get_history(self, user_id: str) -> list[str]:
+    def get_history(self, user_id: str) -> list[dict[str, str]]:
         return list(self._history[user_id])
 
     def bind_session(self, room_id: str, session_id: str, user_id: str) -> None:
