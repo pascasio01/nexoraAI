@@ -21,6 +21,7 @@ Ver `docs/product/monorepo.md`.
 ## Ejecutar local
 ```bash
 pip install -r requirements.txt
+export JWT_SECRET="tu-secreto-seguro"
 python -m uvicorn app:app --reload --port 8000
 ```
 Abrir `http://localhost:8000`.

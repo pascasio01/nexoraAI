@@ -53,6 +53,7 @@
         <div id="chat" class="chat"></div>
         <div class="input-row">
           <input id="messageInput" placeholder="Escribe tu mensaje" />
+          <button id="demoBtn">Iniciar demo segura</button>
           <button id="sendBtn">Enviar</button>
         </div>
       </div>
@@ -63,6 +64,7 @@
       const avatar = document.getElementById('avatar');
       const avatarState = document.getElementById('avatarState');
       const input = document.getElementById('messageInput');
+      const demoBtn = document.getElementById('demoBtn');
       const sendBtn = document.getElementById('sendBtn');
       let token = '';
       let ws;
@@ -81,12 +83,17 @@
       }
 
       async function boot(){
+        if(ws && ws.readyState === 1) return;
         const email = `demo_${Date.now()}@example.com`;
         const register = await fetch('/auth/register', {
           method:'POST', headers:{'content-type':'application/json'},
           body: JSON.stringify({email, password:'NexoraPass123', full_name:'Demo User'})
         });
         const auth = await register.json();
+        if(!auth.access_token){
+          pushMessage('assistant', 'No se pudo iniciar la sesión demo. Reintenta.');
+          return;
+        }
         token = auth.access_token;
         ws = new WebSocket(`ws://${location.host}/ws/live-chat?token=${token}`);
         ws.onmessage = (ev) => {
@@ -94,8 +101,10 @@
           if(payload.type === 'avatar_state'){ setState(payload.state); }
           if(payload.type === 'message'){ pushMessage('assistant', payload.content); }
         };
+        pushMessage('assistant', 'Sesión demo iniciada. Ya puedes conversar con NEXORA OMNI.');
       }
 
+      demoBtn.addEventListener('click', boot);
       sendBtn.addEventListener('click', () => {
         if(!input.value.trim() || !ws || ws.readyState !== 1) return;
         const text = input.value.trim();
@@ -104,7 +113,7 @@
         input.value = '';
       });
 
-      boot();
+      pushMessage('assistant', 'Pulsa “Iniciar demo segura” para crear una sesión temporal.');
     </script>
   </body>
 </html>

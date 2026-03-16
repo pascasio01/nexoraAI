@@ -8,10 +8,13 @@ from fastapi import Header, HTTPException, status
 
 from .database import get_db
 
-JWT_SECRET = os.getenv("JWT_SECRET", "change-this-secret")
+JWT_SECRET = os.getenv("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 ACCESS_MINUTES = int(os.getenv("ACCESS_TOKEN_MINUTES", "30"))
 REFRESH_DAYS = int(os.getenv("REFRESH_TOKEN_DAYS", "14"))
+
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required")
 
 
 def hash_password(password: str) -> str:

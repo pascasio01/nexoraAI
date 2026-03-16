@@ -1,3 +1,6 @@
+import logging
+import sqlite3
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
@@ -29,7 +32,16 @@ from .schemas import (
     TaskUpdateRequest,
 )
 
-app = FastAPI(title="NEXORA OMNI API", version="0.1.0")
+logger = logging.getLogger("nexora.api")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_db()
+    yield
+
+
+app = FastAPI(title="NEXORA OMNI API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -39,11 +51,6 @@ app.add_middleware(
 )
 
 orchestrator = Orchestrator()
-
-
-@app.on_event("startup")
-def startup() -> None:
-    init_db()
 
 
 @app.get("/")
@@ -334,7 +341,7 @@ async def ws_live_chat(websocket: WebSocket):
             conversation = int(conversation_id) if conversation_id.isdigit() else None
             if conversation is None:
                 with get_db() as conn:
-                    cur = conn.execute("INSERT INTO conversations (user_id, title) VALUES (?, ?)", (user_id, "Chat en tiempo real"))
+                    cur = conn.execute("INSERT INTO conversations (user_id, title) VALUES (?, ?)", (user_id, "Realtime Chat"))
                     conversation = cur.lastrowid
                     conversation_id = str(conversation)
 
@@ -384,6 +391,7 @@ async def ws_live_chat(websocket: WebSocket):
             await websocket.send_json({"type": "avatar_state", "state": "idle"})
     except WebSocketDisconnect:
         return
-    except Exception as exc:  # noqa: BLE001
+    except (sqlite3.Error, ValueError) as exc:
+        logger.exception("WebSocket processing error")
         await websocket.send_json({"type": "error", "detail": str(exc)})
         await websocket.close(code=1011)
