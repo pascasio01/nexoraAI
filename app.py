@@ -1,11 +1,13 @@
 import hmac
+import html
 import logging
 import os
+import time
 from contextlib import suppress
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
@@ -30,15 +32,56 @@ TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
 app = FastAPI(title=f"{APP_NAME} AI OS")
 
-client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-tavily = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
-r = redis.from_url(REDIS_URL, decode_responses=True) if REDIS_URL else None
+
+def _init_openai() -> AsyncOpenAI | None:
+    if not OPENAI_API_KEY:
+        return None
+    try:
+        return AsyncOpenAI(api_key=OPENAI_API_KEY)
+    except Exception as exc:
+        logger.warning("OpenAI client init failed: %s", exc)
+        return None
+
+
+def _init_tavily() -> TavilyClient | None:
+    if not TAVILY_API_KEY:
+        return None
+    try:
+        return TavilyClient(api_key=TAVILY_API_KEY)
+    except Exception as exc:
+        logger.warning("Tavily client init failed: %s", exc)
+        return None
+
+
+def _init_redis() -> redis.Redis | None:
+    if not REDIS_URL:
+        return None
+    try:
+        return redis.from_url(REDIS_URL, decode_responses=True)
+    except Exception as exc:
+        logger.warning("Redis client init failed: %s", exc)
+        return None
+
+
+client = _init_openai()
+tavily = _init_tavily()
+r = _init_redis()
 tg_app = None
+failed_webhook_attempts: dict[str, list[float]] = {}
 
 
 class ChatRequest(BaseModel):
-    user_id: str
-    text: str
+    """Chat payload using current English names and legacy Spanish aliases."""
+
+    user_id: str = Field(validation_alias=AliasChoices("user_id", "usuario"))
+    text: str = Field(validation_alias=AliasChoices("text", "texto"))
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("text is required")
+        return value
 
 
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -47,7 +90,23 @@ async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message and update.message.text:
-        await update.message.reply_text(f"{APP_NAME}: {update.message.text}")
+        try:
+            safe_text = html.escape(update.message.text, quote=False)
+            await update.message.reply_text(f"{APP_NAME}: {safe_text}")
+        except Exception as exc:
+            logger.warning("Telegram reply failed: %s", exc)
+
+
+def _is_webhook_rate_limited(client_ip: str, window_seconds: int = 60, max_attempts: int = 30) -> bool:
+    now = time.time()
+    attempts = failed_webhook_attempts.get(client_ip, [])
+    attempts = [attempt for attempt in attempts if now - attempt < window_seconds]
+    failed_webhook_attempts[client_ip] = attempts
+    return len(attempts) >= max_attempts
+
+
+def _record_webhook_failure(client_ip: str) -> None:
+    failed_webhook_attempts.setdefault(client_ip, []).append(time.time())
 
 
 @app.on_event("startup")
@@ -119,9 +178,6 @@ async def health() -> dict:
 
 @app.post("/chat")
 async def chat(req: ChatRequest) -> dict:
-    if not req.text.strip():
-        raise HTTPException(status_code=400, detail="text is required")
-
     if client is None:
         return {"response": f"{APP_NAME} running (OPENAI_API_KEY not configured)."}
 
@@ -142,16 +198,21 @@ async def reset_web(req: ChatRequest) -> dict:
 
 @app.post("/whatsapp")
 async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)) -> dict:
-    _ = From
-    return {"reply": f"{APP_NAME}: {Body}"}
+    return {"reply": f"{APP_NAME}: {Body}", "from": From}
 
 
 @app.post("/tg/{token}")
 async def tg_webhook(token: str, request: Request) -> dict:
-    if not BOT_TOKEN:
-        raise HTTPException(status_code=503, detail="telegram is not configured")
+    client_ip = request.client.host if request.client else "unknown"
+    if _is_webhook_rate_limited(client_ip):
+        raise HTTPException(status_code=429, detail="too many requests")
 
-    if not hmac.compare_digest(token, BOT_TOKEN):
+    if not isinstance(BOT_TOKEN, str) or not BOT_TOKEN:
+        _record_webhook_failure(client_ip)
+        raise HTTPException(status_code=403, detail="invalid webhook token")
+
+    if not hmac.compare_digest(token.encode(), BOT_TOKEN.encode()):
+        _record_webhook_failure(client_ip)
         raise HTTPException(status_code=403, detail="invalid webhook token")
 
     if tg_app is None:
