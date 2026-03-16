@@ -1,11 +1,9 @@
-# Core Orchestrator
-
 class Orchestrator:
     def __init__(self):
-        pass
+        self.started = False
 
     def start(self):
-        pass
+        self.started = True
 
     def stop(self):
-        pass
+        self.started = False

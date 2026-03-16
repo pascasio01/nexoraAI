@@ -8,3 +8,5 @@ tavily-python
 httpx
 python-telegram-bot==21.10
 pydantic
+PyJWT
+email-validator
