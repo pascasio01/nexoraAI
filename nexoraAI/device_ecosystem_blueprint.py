@@ -86,7 +86,7 @@ def build_device_ecosystem_blueprint() -> dict:
                 "automation": ["deep_links", "app_intents", "shortcuts"],
             },
             "file_and_device_transfer": {
-                "now": ["secure_cloud_transfer", "cross_device_document_exchange", "qr_pairing"],
+                "current": ["secure_cloud_transfer", "cross_device_document_exchange", "qr_pairing"],
                 "future": ["wifi_direct_transfer", "bluetooth_transfer"],
                 "formats": ["images", "videos", "pdf", "documents"],
             },
@@ -95,7 +95,7 @@ def build_device_ecosystem_blueprint() -> dict:
                 "future": ["video_understanding", "camera_scene_reasoning"],
             },
             "personal_agent_per_user": {
-                "model": "one_assistant_instance_per_user",
+                "model": "one assistant instance per user",
                 "scopes": ["user_memory", "user_settings", "user_tools", "user_permissions"],
             },
             "tool_system": {
@@ -202,4 +202,3 @@ def build_device_ecosystem_blueprint() -> dict:
             },
         ],
     }
-
