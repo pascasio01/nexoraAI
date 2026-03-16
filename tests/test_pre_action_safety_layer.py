@@ -25,11 +25,16 @@ class PreActionSafetyLayerTests(unittest.TestCase):
             "best_next_step",
             "scenario_model",
             "secure_practices",
+            "risk_severity",
             "requires_confirmation",
             "sensitive_action",
         }
         self.assertTrue(expected_keys.issubset(result.keys()))
-        self.assertTrue(0.05 <= result["confidence_score"] <= 0.99)
+        self.assertTrue(
+            PreActionSafetyLayer.MIN_CONFIDENCE
+            <= result["confidence_score"]
+            <= PreActionSafetyLayer.MAX_CONFIDENCE
+        )
         self.assertIn("optimistic_scenario", result["scenario_model"])
         self.assertIn("probable_scenario", result["scenario_model"])
         self.assertIn("risky_scenario", result["scenario_model"])
@@ -56,10 +61,14 @@ class PreActionSafetyLayerTests(unittest.TestCase):
             action_metadata={"action_name": "send_report"},
         )
 
-        joined_practices = " ".join(result["secure_practices"]).lower()
-        self.assertIn("vpn", joined_practices)
-        self.assertIn("privacy and security protection", joined_practices)
-        self.assertIn("not for bypassing rules", joined_practices)
+        practices = result["secure_practices"]
+        vpn_practice = next((item for item in practices if "vpn" in item.lower()), "")
+        self.assertTrue(vpn_practice)
+        vpn_practice_lower = vpn_practice.lower()
+        self.assertIn("privacy", vpn_practice_lower)
+        self.assertIn("security", vpn_practice_lower)
+        self.assertIn("bypass", vpn_practice_lower)
+        self.assertIn("rules", vpn_practice_lower)
 
 
 class OrchestratorIntegrationTests(unittest.TestCase):
@@ -73,6 +82,14 @@ class OrchestratorIntegrationTests(unittest.TestCase):
         blueprint = orchestrator.get_pre_action_architecture()
 
         self.assertEqual(review["detected_objective"], "Set a reminder")
+        self.assertFalse(review["requires_confirmation"])
+        self.assertEqual(review["risk_severity"], "low")
+        self.assertEqual(review["potential_risks"], [])
+        self.assertTrue(
+            PreActionSafetyLayer.MIN_CONFIDENCE
+            <= review["confidence_score"]
+            <= PreActionSafetyLayer.MAX_CONFIDENCE
+        )
         self.assertIn("architecture_for_pre_action_analysis", blueprint)
         self.assertIn("mvp_implementation_plan", blueprint)
 
