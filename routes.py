@@ -106,7 +106,7 @@ async def voice_capabilities():
         "prepared": True,
         "transcription": client is not None,
         "synthesis": False,
-        "wake_phrase": "planned",
+        "wake_phrase": "not_implemented",
     }
 
 
@@ -114,9 +114,9 @@ async def voice_capabilities():
 async def avatar_capabilities():
     return {
         "prepared": True,
-        "floating_widget": "planned",
-        "presence_sync": "planned",
-        "lip_sync": "planned",
+        "floating_widget": "not_implemented",
+        "presence_sync": "not_implemented",
+        "lip_sync": "not_implemented",
     }
 
 

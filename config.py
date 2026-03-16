@@ -21,7 +21,8 @@ REDIS_URL = os.getenv("REDIS_URL")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ACTION_WEBHOOK_URL = os.getenv("ACTION_WEBHOOK_URL")
-OWNER_ID = int(os.getenv("OWNER_ID", "0")) if os.getenv("OWNER_ID", "0").isdigit() else 0
+_OWNER_ID_RAW = os.getenv("OWNER_ID", "0")
+OWNER_ID = int(_OWNER_ID_RAW) if _OWNER_ID_RAW.isdigit() else 0
 
 MAX_CHAT_HISTORY = int(os.getenv("MAX_CHAT_HISTORY", "12"))
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "8"))

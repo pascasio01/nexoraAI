@@ -47,7 +47,6 @@ class PersonalCompanionBackendTests(unittest.TestCase):
         self.assertTrue(get_settings.json()['settings']['avatar_enabled'])
 
     @patch('ai_core.AUTH_SIGNING_KEY', 'test-secret')
-    @patch('config.AUTH_SIGNING_KEY', 'test-secret')
     def test_chat_uses_bearer_identity_when_valid(self):
         user_id = 'secure-user'
         ts = str(int(time.time()))
@@ -61,6 +60,22 @@ class PersonalCompanionBackendTests(unittest.TestCase):
         )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json()['user_id'], user_id)
+
+    @patch('ai_core.AUTH_SIGNING_KEY', 'test-secret')
+    @patch('ai_core.AUTH_TOKEN_MAX_AGE_SECONDS', 1)
+    def test_chat_rejects_expired_bearer_identity(self):
+        user_id = 'secure-user'
+        ts = str(int(time.time()) - 300)
+        sig = hmac.new(b'test-secret', f'{user_id}.{ts}'.encode(), hashlib.sha256).hexdigest()
+        token = f'{user_id}.{ts}.{sig}'
+
+        res = self.client.post(
+            '/chat',
+            headers={'Authorization': f'Bearer {token}'},
+            json={'texto': 'hola', 'usuario': 'fallback-user', 'channel': 'web'},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['user_id'], 'fallback-user')
 
 
 if __name__ == '__main__':

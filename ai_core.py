@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import hmac
 import json
@@ -10,6 +11,7 @@ from config import (
     CREATOR_ALIAS,
     CREATOR_NAME,
     MODEL_NAME,
+    logger,
 )
 from deps import client
 from memory import (
@@ -43,7 +45,8 @@ def verify_identity_token(token: str) -> str | None:
         if time.time() - int(ts) > AUTH_TOKEN_MAX_AGE_SECONDS:
             return None
         return user_id
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Token de identidad inválido: {e}")
         return None
 
 
@@ -75,8 +78,8 @@ async def update_user_profile(user_id: str, last_interaction: str):
         )
         if res.choices and res.choices[0].message and res.choices[0].message.content:
             await set_profile(user_id, res.choices[0].message.content)
-    except Exception:
-        return
+    except Exception as e:
+        logger.warning(f"No se pudo actualizar perfil automáticamente: {e}")
 
 
 async def ask_nexora(user_id: str, text: str, channel: str) -> str:
@@ -112,6 +115,13 @@ async def ask_nexora(user_id: str, text: str, channel: str) -> str:
         answer = msg.content or "No pude generar respuesta."
 
         if msg.tool_calls:
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [tc.model_dump(exclude_none=True) for tc in msg.tool_calls],
+                }
+            )
             for tool_call in msg.tool_calls:
                 args = json.loads(tool_call.function.arguments or "{}")
                 if tool_call.function.name == "search_web" and args.get("query"):
@@ -129,7 +139,8 @@ async def ask_nexora(user_id: str, text: str, channel: str) -> str:
 
         await save_chat_memory(user_id, "user", text)
         await save_chat_memory(user_id, "assistant", answer)
-        await update_user_profile(user_id, f"User: {text} | Assistant: {answer}")
+        asyncio.create_task(update_user_profile(user_id, f"User: {text} | Assistant: {answer}"))
         return answer
-    except Exception:
+    except Exception as e:
+        logger.error(f"Error en ask_nexora: {e}")
         return "⚠️ Hubo un problema generando la respuesta."

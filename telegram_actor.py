@@ -11,14 +11,14 @@ tg_app = None
 
 
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
+    if OWNER_ID != 0 and update.effective_user and update.effective_user.id != OWNER_ID:
         return
     if update.message:
         await update.message.reply_text(f"✅ {APP_NAME} activa.")
 
 
 async def tg_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
+    if OWNER_ID != 0 and update.effective_user and update.effective_user.id != OWNER_ID:
         return
     if update.effective_user:
         await reset_memory(str(update.effective_user.id))
@@ -27,7 +27,7 @@ async def tg_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
+    if OWNER_ID != 0 and update.effective_user and update.effective_user.id != OWNER_ID:
         return
     if update.message and update.message.text and update.effective_user:
         answer = await ask_nexora(str(update.effective_user.id), update.message.text, "telegram")

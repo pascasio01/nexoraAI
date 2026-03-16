@@ -1,4 +1,5 @@
 import json
+import time
 from typing import Any
 
 from config import MAX_CHAT_HISTORY, RATE_LIMIT_PER_MINUTE, logger
@@ -18,9 +19,13 @@ def _fallback_set(key: str, value: Any) -> None:
 async def check_rate_limit(user_id: str) -> bool:
     key = f"rate_limit:{user_id}"
     if r is None:
-        count = int(_fallback_get(key, 0)) + 1
-        _fallback_set(key, count)
-        return count <= RATE_LIMIT_PER_MINUTE
+        bucket = _fallback_get(key, {"count": 0, "window_start": time.time()})
+        now = time.time()
+        if now - bucket.get("window_start", now) >= 60:
+            bucket = {"count": 0, "window_start": now}
+        bucket["count"] = int(bucket.get("count", 0)) + 1
+        _fallback_set(key, bucket)
+        return bucket["count"] <= RATE_LIMIT_PER_MINUTE
     try:
         count = await r.incr(key)
         if count == 1:

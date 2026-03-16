@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -11,7 +12,7 @@ from core.memory_store import load_long_memory, save_long_memory
 logger = logging.getLogger("Nexora")
 
 
-async def run_agents(user_id: str, user_text: str):
+async def run_agents_async(user_id: str, user_text: str):
     """Orquesta el flujo de agentes para generar respuestas contextuales."""
     try:
         route = await supervisor_agent(user_text)
@@ -34,3 +35,10 @@ async def run_agents(user_id: str, user_text: str):
     except Exception as e:
         logger.error(f"Error en orquestador de agentes: {e}")
         return f"Error procesando consulta: {e}"
+
+
+def run_agents(user_id: str, user_text: str):
+    """
+    Compatibilidad con llamadas síncronas existentes.
+    """
+    return asyncio.run(run_agents_async(user_id, user_text))
