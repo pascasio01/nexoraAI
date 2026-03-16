@@ -1,3 +1,4 @@
+import asyncio
 import hmac
 import html
 import logging
@@ -68,6 +69,8 @@ tavily = _init_tavily()
 r = _init_redis()
 tg_app = None
 failed_webhook_attempts: dict[str, list[float]] = {}
+webhook_attempts_lock = asyncio.Lock()
+MAX_FAILED_WEBHOOK_IPS = 2000
 
 
 class ChatRequest(BaseModel):
@@ -97,16 +100,32 @@ async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.warning("Telegram reply failed: %s", exc)
 
 
-def _is_webhook_rate_limited(client_ip: str, window_seconds: int = 60, max_attempts: int = 30) -> bool:
+async def _check_and_cleanup_webhook_rate_limit(
+    client_ip: str, window_seconds: int = 60, max_attempts: int = 30
+) -> bool:
     now = time.time()
-    attempts = failed_webhook_attempts.get(client_ip, [])
-    attempts = [attempt for attempt in attempts if now - attempt < window_seconds]
-    failed_webhook_attempts[client_ip] = attempts
-    return len(attempts) >= max_attempts
+    async with webhook_attempts_lock:
+        if len(failed_webhook_attempts) > MAX_FAILED_WEBHOOK_IPS:
+            stale_ips = [
+                ip
+                for ip, ip_attempts in failed_webhook_attempts.items()
+                if not ip_attempts or now - max(ip_attempts) >= window_seconds
+            ]
+            for ip in stale_ips:
+                failed_webhook_attempts.pop(ip, None)
+
+        attempts = failed_webhook_attempts.get(client_ip, [])
+        attempts = [attempt for attempt in attempts if now - attempt < window_seconds]
+        if attempts:
+            failed_webhook_attempts[client_ip] = attempts
+        else:
+            failed_webhook_attempts.pop(client_ip, None)
+        return len(attempts) >= max_attempts
 
 
-def _record_webhook_failure(client_ip: str) -> None:
-    failed_webhook_attempts.setdefault(client_ip, []).append(time.time())
+async def _record_webhook_failure(client_ip: str) -> None:
+    async with webhook_attempts_lock:
+        failed_webhook_attempts.setdefault(client_ip, []).append(time.time())
 
 
 @app.on_event("startup")
@@ -204,15 +223,19 @@ async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)) -> dict
 @app.post("/tg/{token}")
 async def tg_webhook(token: str, request: Request) -> dict:
     client_ip = request.client.host if request.client else "unknown"
-    if _is_webhook_rate_limited(client_ip):
+    if await _check_and_cleanup_webhook_rate_limit(client_ip):
         raise HTTPException(status_code=429, detail="too many requests")
 
-    if not isinstance(BOT_TOKEN, str) or not BOT_TOKEN:
-        _record_webhook_failure(client_ip)
+    if BOT_TOKEN is None or BOT_TOKEN == "":
         raise HTTPException(status_code=403, detail="invalid webhook token")
 
-    if not hmac.compare_digest(token.encode(), BOT_TOKEN.encode()):
-        _record_webhook_failure(client_ip)
+    try:
+        valid_token = hmac.compare_digest(token.encode(), BOT_TOKEN.encode())
+    except (AttributeError, UnicodeError):
+        valid_token = False
+
+    if not valid_token:
+        await _record_webhook_failure(client_ip)
         raise HTTPException(status_code=403, detail="invalid webhook token")
 
     if tg_app is None:
