@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ChatRequest(BaseModel):
-    texto: str = Field(default="", min_length=0)
+    texto: str = Field(..., min_length=0)
     usuario: str = "web_user"
 
     @model_validator(mode="before")

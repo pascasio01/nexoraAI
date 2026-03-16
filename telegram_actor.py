@@ -62,7 +62,10 @@ async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("📥 Documento recibido. La biblioteca privada está lista para integrarse.")
             return
 
-        if update.message.photo and client is not None:
+        if update.message.photo:
+            if client is None:
+                await update.message.reply_text("⚠️ OpenAI no está configurado ahora mismo.")
+                return
             file = await context.bot.get_file(update.message.photo[-1].file_id)
             prompt = update.message.caption or "Analiza esta imagen."
 
@@ -87,7 +90,10 @@ async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(answer)
             return
 
-        if update.message.voice and client is not None:
+        if update.message.voice:
+            if client is None:
+                await update.message.reply_text("⚠️ OpenAI no está configurado ahora mismo.")
+                return
             file = await context.bot.get_file(update.message.voice.file_id)
             audio_data = io.BytesIO()
             await file.download_to_memory(audio_data)

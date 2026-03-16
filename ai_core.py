@@ -110,7 +110,12 @@ async def ask_nexora(user_id: str, text: str, channel: str) -> str:
                     }
                 )
             elif name == "execute_action":
-                res = await execute_action(args.get("action_name", ""), args.get("details", {}))
+                action_name = args.get("action_name")
+                details = args.get("details")
+                if not action_name or not isinstance(details, dict):
+                    res = "Parámetros inválidos para execute_action."
+                else:
+                    res = await execute_action(action_name, details)
                 messages.append(
                     {
                         "role": "tool",
@@ -120,12 +125,16 @@ async def ask_nexora(user_id: str, text: str, channel: str) -> str:
                     }
                 )
 
-        final = await client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=messages,
-            max_tokens=800,
-        )
-        answer = final.choices[0].message.content or "No pude generar una respuesta."
+        try:
+            final = await client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=messages,
+                max_tokens=800,
+            )
+            answer = final.choices[0].message.content or "No pude generar una respuesta."
+        except Exception as exc:
+            logger.error(f"Error OpenAI tras ejecutar herramientas: {exc}")
+            answer = "⚠️ Hubo un problema generando la respuesta."
     else:
         answer = msg.content or "No pude generar una respuesta."
 
