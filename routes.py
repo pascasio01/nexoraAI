@@ -53,15 +53,15 @@ async def health():
 
 @router.post("/chat")
 async def chat(req: ChatRequest):
-    answer = await ask_nexora(user_id=req.usuario, text=req.texto, channel=req.channel)
-    agent = await get_personal_agent(req.usuario)
-    return {"respuesta": answer, "agent_id": agent.agent_id}
+    answer = await ask_nexora(user_id=req.user_id, text=req.text, channel=req.channel)
+    agent = await get_personal_agent(req.user_id)
+    return {"answer": answer, "respuesta": answer, "agent_id": agent.agent_id}
 
 
 @router.post("/reset-web")
 async def reset_web(req: ChatRequest):
-    await reset_memory(req.usuario)
-    return {"ok": True, "mensaje": "Memoria reiniciada."}
+    await reset_memory(req.user_id)
+    return {"ok": True, "message": "Memory reset.", "mensaje": "Memoria reiniciada."}
 
 
 @router.post("/whatsapp")

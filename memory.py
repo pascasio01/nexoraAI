@@ -82,7 +82,7 @@ async def check_rate_limit(user_id: str) -> bool:
 
 
 async def get_profile(user_id: str) -> str:
-    return await _get(f"profile:{user_id}") or "Usuario nuevo."
+    return await _get(f"profile:{user_id}") or "New user."
 
 
 async def set_profile(user_id: str, profile_text: str) -> None:

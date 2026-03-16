@@ -15,6 +15,7 @@ from memory import (
     load_chat_memory,
     save_agent_event,
     save_chat_memory,
+    set_agent_descriptor,
     set_profile,
     set_summary,
 )
@@ -58,7 +59,6 @@ async def update_agent_permissions(user_id: str, tools_list: list[str] | None, p
         descriptor.tools = tools_list
     if permissions is not None:
         descriptor.permissions.update(permissions)
-    from memory import set_agent_descriptor  # local import to avoid cycles
 
     await set_agent_descriptor(user_id, descriptor)
     return descriptor
