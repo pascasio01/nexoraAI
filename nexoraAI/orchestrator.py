@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional
 
@@ -14,6 +15,8 @@ from nexoraAI.notification_agent import NotificationAgent
 from nexoraAI.research_agent import ResearchAgent
 from nexoraAI.security_agent import SecurityAgent
 from nexoraAI.wellness_agent import WellnessAgent
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -52,9 +55,9 @@ class Orchestrator:
     def detect_intent(self, user_input: str) -> str:
         text = user_input.lower()
         intent_map = {
-            "calendar": ("calendar", "meeting", "schedule", "agenda", "evento", "reunión"),
+            "calendar": ("calendar", "meeting", "schedule", "agenda", "evento", "reunion", "reunión"),
             "wellness": ("wellness", "salud", "exercise", "sleep", "stress", "hábitos"),
-            "communication": ("email", "message", "reply", "whatsapp", "telegram", "comunicar"),
+            "communication": ("email", "message", "reply", "whatsapp", "telegram", "comunicar", "communicate"),
             "notification": ("notify", "remind", "alert", "recordatorio", "notificación"),
             "security": ("password", "security", "risk", "2fa", "fraud", "phishing"),
             "device": ("device", "wifi", "bluetooth", "screen", "laptop", "phone"),
@@ -68,13 +71,13 @@ class Orchestrator:
 
     def _select_agents(self, intent: str) -> Iterable[AssistantAgent]:
         selected: List[AssistantAgent] = []
-        memory_agent = self.agents.get("memory")
-        if memory_agent:
-            selected.append(memory_agent)
-        if intent in self.agents and intent != "memory":
-            selected.append(self.agents[intent])
-        elif intent != "memory" and self.agents.get("research"):
+        primary = self.agents.get(intent)
+        if primary:
+            selected.append(primary)
+        elif self.agents.get("research"):
             selected.append(self.agents["research"])
+        if intent != "memory" and self.agents.get("memory"):
+            selected.insert(0, self.agents["memory"])
         return selected
 
     async def process(
@@ -117,7 +120,8 @@ class Orchestrator:
         for agent in self._select_agents(intent):
             try:
                 results.append(await agent.run(payload))
-            except Exception:
+            except Exception as exc:
+                logger.exception("Agent '%s' failed: %s", getattr(agent, "name", "unknown"), exc)
                 results.append(
                     AgentResult(
                         agent=agent.name,

@@ -16,6 +16,8 @@ class StructuredKnowledge:
 
 
 class MemoryEngine:
+    MAX_RECENT_KNOWLEDGE_ITEMS = 3
+
     def __init__(self, short_capacity: int = 8, mid_capacity: int = 30):
         self.short_term: Dict[str, Deque[dict]] = defaultdict(lambda: deque(maxlen=short_capacity))
         self.mid_term: Dict[str, Deque[dict]] = defaultdict(lambda: deque(maxlen=mid_capacity))
@@ -59,11 +61,11 @@ class MemoryEngine:
             "short_term": list(self.short_term[user_id]),
             "mid_term_count": len(self.mid_term[user_id]),
             "knowledge": {
-                "preferences": knowledge.preferences[-3:],
-                "habits": knowledge.habits[-3:],
-                "goals": knowledge.goals[-3:],
-                "tasks": knowledge.tasks[-3:],
-                "important_facts": knowledge.important_facts[-3:],
-                "relationships": knowledge.relationships[-3:],
+                "preferences": knowledge.preferences[-self.MAX_RECENT_KNOWLEDGE_ITEMS :],
+                "habits": knowledge.habits[-self.MAX_RECENT_KNOWLEDGE_ITEMS :],
+                "goals": knowledge.goals[-self.MAX_RECENT_KNOWLEDGE_ITEMS :],
+                "tasks": knowledge.tasks[-self.MAX_RECENT_KNOWLEDGE_ITEMS :],
+                "important_facts": knowledge.important_facts[-self.MAX_RECENT_KNOWLEDGE_ITEMS :],
+                "relationships": knowledge.relationships[-self.MAX_RECENT_KNOWLEDGE_ITEMS :],
             },
         }
