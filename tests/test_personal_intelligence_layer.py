@@ -117,6 +117,17 @@ class PersonalIntelligenceLayerTests(unittest.TestCase):
         self.assertTrue(result["security"]["warning"])
         self.assertIn("otp", result["security"]["flags"])
 
+        variant = runtime.handle_input(
+            user_id="u-4",
+            user_text="Please send your One-Time Password verification code",
+            channel="web",
+            device_id="browser-1",
+            permissions=[],
+            autonomy_level=AutonomyLevel.LEVEL_0_SUGGEST_ONLY,
+        )
+        self.assertTrue(variant["security"]["warning"])
+        self.assertIn("one-time password", variant["security"]["flags"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ from nexoraAI.personal_intelligence import (
     PersonalIntelligenceOrchestrator,
     build_personal_intelligence_layer,
 )
+from typing import Any, Dict, List, Optional
 
 
 class Orchestrator:
@@ -22,9 +23,9 @@ class Orchestrator:
         text: str,
         channel: str = "web",
         device_id: str = "default-device",
-        permissions: list[str] | None = None,
+        permissions: Optional[List[str]] = None,
         autonomy_level: AutonomyLevel = AutonomyLevel.LEVEL_0_SUGGEST_ONLY,
-    ) -> dict:
+    ) -> Dict[str, Any]:
         if not self._running:
             self.start()
         return self._runtime.handle_input(

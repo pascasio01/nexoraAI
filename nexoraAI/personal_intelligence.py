@@ -131,11 +131,13 @@ class DecisionLogEntry:
 
 
 class DecisionEngine:
+    HIGH_RISK_THRESHOLD = 0.7
+
     def __init__(self) -> None:
         self.logs: List[DecisionLogEntry] = []
 
     def evaluate(self, context: DecisionContext) -> Dict[str, Any]:
-        high_risk = context.risk_score >= 0.7
+        high_risk = context.risk_score >= self.HIGH_RISK_THRESHOLD
         if context.autonomy_level == AutonomyLevel.LEVEL_0_SUGGEST_ONLY:
             mode = "suggest"
             requires_confirmation = False
@@ -274,9 +276,17 @@ class RealtimeInteractionHub:
 
 
 class PersonalSecurityLayer:
+    DEFAULT_RISK_SCORE = 0.1
+    BASE_RISK_SCORE = 0.2
+    RISK_INCREMENT_PER_KEYWORD = 0.2
     _SCAM_KEYWORDS = (
         "otp",
+        "one-time password",
+        "verification code",
         "pin",
+        "account suspended",
+        "confirm identity",
+        "social security",
         "bank transfer",
         "wire money",
         "gift card",
@@ -286,7 +296,11 @@ class PersonalSecurityLayer:
     def detect(self, user_text: str) -> Dict[str, Any]:
         lowered = user_text.lower()
         hits = [kw for kw in self._SCAM_KEYWORDS if kw in lowered]
-        risk = min(1.0, 0.2 + 0.2 * len(hits)) if hits else 0.1
+        risk = (
+            min(1.0, self.BASE_RISK_SCORE + self.RISK_INCREMENT_PER_KEYWORD * len(hits))
+            if hits
+            else self.DEFAULT_RISK_SCORE
+        )
         return {
             "risk_score": risk,
             "flags": hits,
@@ -384,11 +398,14 @@ class PersonalIntelligenceOrchestrator:
 
         tool_result = None
         if intent == "calendar_action" and decision["mode"] in ("execute_authorized", "execute_automatic"):
-            tool_result = self.tools.execute(
-                "create_task",
-                {"title": user_text, "source": channel},
-                permissions=effective_permissions,
-            )
+            try:
+                tool_result = self.tools.execute(
+                    "create_task",
+                    {"title": user_text, "source": channel},
+                    permissions=effective_permissions,
+                )
+            except (PermissionError, KeyError) as exc:
+                tool_result = {"status": "blocked", "reason": str(exc)}
 
         response = (
             f"[{agent_result.agent}] {agent_result.content}. "
