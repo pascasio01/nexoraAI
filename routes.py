@@ -114,8 +114,8 @@ async def tools_execute(req: ToolExecutionRequest) -> dict:
 
 
 @router.post("/whatsapp")
-async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)) -> JSONResponse:
-    response = await ask_nexora(user_id=From, text=Body, channel="whatsapp")
+async def whatsapp_webhook(body: str = Form(..., alias="Body"), from_number: str = Form(..., alias="From")) -> JSONResponse:
+    response = await ask_nexora(user_id=from_number, text=body, channel="whatsapp")
     return JSONResponse({"reply": response})
 
 

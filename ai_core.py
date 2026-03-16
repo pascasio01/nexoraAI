@@ -17,7 +17,7 @@ from tools_impl import execute_tool_call
 from tools_schema import tools
 
 SYSTEM_PROMPT = (
-    "Eres Nexora, un asistente personal modular. "
+    f"Eres {settings.app_name}, un asistente personal modular. "
     "Usa herramientas cuando aporten valor y sé transparente si un servicio no está activo."
 )
 
