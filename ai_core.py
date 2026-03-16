@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from config import APP_NAME, MODEL_NAME
+from config import APP_NAME, MODEL_NAME, logger
 from deps import get_openai
 from memory import check_rate_limit, load_chat_memory, save_chat_memory
 
@@ -37,7 +37,8 @@ async def ask_nexora(user_id: str, text: str, channel: str) -> str:
             max_tokens=500,
         )
         answer = response.choices[0].message.content or "No response generated."
-    except Exception:
+    except Exception as exc:
+        logger.warning("OpenAI chat call failed: %s", exc)
         answer = "The assistant had a temporary model error. Please retry."
 
     await save_chat_memory(user_id, "user", text)
