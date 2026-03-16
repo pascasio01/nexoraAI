@@ -1,17 +1,18 @@
 import json
 import logging
-from agents.supervisor import supervisor_agent
-from agents.research import research_agent
-from agents.creative import creative_agent
-from agents.verify import verify_agent
-from agents.memory import memory_agent
-from core.memory_store import save_long_memory, load_long_memory
 
 logger = logging.getLogger("Nexora")
 
-def run_agents(user_id: str, user_text: str):
-    """Orquesta el flujo de agentes para generar respuestas contextuales."""
+async def run_agents(user_id: str, user_text: str):
+    """Orquesta en modo async el flujo de agentes para generar respuestas contextuales."""
     try:
+        from agents.supervisor import supervisor_agent
+        from agents.research import research_agent
+        from agents.creative import creative_agent
+        from agents.verify import verify_agent
+        from agents.memory import memory_agent
+        from core.memory_store import save_long_memory, load_long_memory
+
         # 1. Supervisor decide si necesita investigación
         route = await supervisor_agent(user_text)
         
