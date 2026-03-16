@@ -62,9 +62,11 @@ async def get_health_snapshot(telegram_ready: bool) -> dict:
     redis_ok = await get_redis_status()
     openai_ok = client is not None
     tavily_ok = tavily is not None
-    status = "ok" if (openai_ok or redis_ok or tavily_ok or telegram_ready) else "degraded"
+    available = [redis_ok, openai_ok, tavily_ok, telegram_ready]
+    status = "ok" if all(available) else "degraded"
     return {
         "status": status,
+        "api": True,
         "redis": redis_ok,
         "openai": openai_ok,
         "tavily": tavily_ok,

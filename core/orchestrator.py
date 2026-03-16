@@ -10,7 +10,7 @@ from core.memory_store import save_long_memory, load_long_memory
 logger = logging.getLogger("Nexora")
 
 async def run_agents(user_id: str, user_text: str):
-    """Orquesta el flujo de agentes para generar respuestas contextuales."""
+    """Orquesta agentes y devuelve una respuesta final de texto o mensaje de error."""
     try:
         # 1. Supervisor decide si necesita investigación
         route = await supervisor_agent(user_text)

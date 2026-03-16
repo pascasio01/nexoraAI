@@ -148,12 +148,16 @@ async def save_agent(agent: AgentRecord) -> None:
 async def list_agents() -> list[AgentRecord]:
     redis_client = deps.redis_client
     if redis_client is not None:
-        keys = await redis_client.keys("agent_registry:agent:*")
         items = []
-        for key in keys:
-            raw = await redis_client.get(key)
-            if raw:
-                items.append(AgentRecord(**json.loads(raw)))
+        cursor = 0
+        while True:
+            cursor, keys = await redis_client.scan(cursor=cursor, match="agent_registry:agent:*", count=100)
+            for key in keys:
+                raw = await redis_client.get(key)
+                if raw:
+                    items.append(AgentRecord(**json.loads(raw)))
+            if cursor == 0:
+                break
         if items:
             return items
     return list(_fallback_agents.values())

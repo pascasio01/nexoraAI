@@ -16,10 +16,13 @@ BASE_URL = (os.getenv("BASE_URL") or "").rstrip("/")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 ACTION_WEBHOOK_URL = os.getenv("ACTION_WEBHOOK_URL")
 
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
 APP_NAME = os.getenv("APP_NAME", "Nexora")
 CREATOR_NAME = os.getenv("CREATOR_NAME", "Pascasio Emmanuel Reynoso Reyes")
 CREATOR_ALIAS = os.getenv("CREATOR_ALIAS", "Emmanuel Reynoso")
 
 MAX_CHAT_HISTORY = int(os.getenv("MAX_CHAT_HISTORY", "12"))
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "8"))
+
+if not BASE_URL:
+    logger.info("BASE_URL not configured; webhook-based integrations may be limited.")

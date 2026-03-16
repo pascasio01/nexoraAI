@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import Request, Response
 
 from config import BOT_TOKEN, logger
@@ -30,21 +32,21 @@ except Exception:  # pragma: no cover - optional runtime integration
 _tg_app: Application | None = None
 
 
-async def tg_start(update, context) -> None:
+async def tg_start(update: Any, context: Any) -> None:
     await update.message.reply_text("👋 Hola. Tu agente personal está activo.")
 
 
-async def tg_status(update, context) -> None:
+async def tg_status(update: Any, context: Any) -> None:
     await update.message.reply_text("✅ Telegram conectado al núcleo de Nexora.")
 
 
-async def tg_reset(update, context) -> None:
+async def tg_reset(update: Any, context: Any) -> None:
     user_id = str(update.effective_user.id)
     await reset_memory(user_id)
     await update.message.reply_text("🧹 Memoria reiniciada para tu agente.")
 
 
-async def handle_telegram(update, context) -> None:
+async def handle_telegram(update: Any, context: Any) -> None:
     if not update.message or not update.message.text:
         return
     user_id = str(update.effective_user.id)

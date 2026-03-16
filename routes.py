@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Form
+from fastapi import APIRouter, Form, Request
 
 from ai_core import (
     ask_nexora,
@@ -49,13 +49,15 @@ async def reset_web(req: ChatRequest):
 
 @router.post("/whatsapp")
 async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
-    user_id = (From or "").replace("whatsapp:", "") or "wa_user"
+    sender = (From or "").strip()
+    sender = sender.removeprefix("whatsapp:")
+    user_id = sender or "wa_user"
     answer = await ask_nexora(user_id, Body, "WhatsApp")
     return {"ok": True, "respuesta": answer}
 
 
 @router.post("/tg/{token}")
-async def tg_webhook(token: str, request):
+async def tg_webhook(token: str, request: Request):
     return await telegram_webhook(token, request)
 
 

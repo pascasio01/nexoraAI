@@ -30,13 +30,14 @@ Reglas:
 - Si una integración opcional no está disponible, dilo claramente.
 - Estructura las respuestas para facilitar coordinación entre agentes.
 """.strip()
+PROFILE_SEED_CHARS = 120
 
 
 async def _update_profile_and_summary(user_id: str, user_text: str, answer: str) -> None:
     """Maintain lightweight profile and summary memory without strict model dependency."""
     profile = await get_profile(user_id)
     if profile == "Usuario nuevo.":
-        await set_profile(user_id, f"Prefiere hablar sobre: {user_text[:120]}")
+        await set_profile(user_id, f"Initial preference seed: {user_text[:PROFILE_SEED_CHARS]}")
     summary = await get_summary(user_id)
     merged = f"{summary}\n- U: {user_text[:140]}\n- A: {answer[:140]}".strip()
     await set_summary(user_id, merged[-1000:])
