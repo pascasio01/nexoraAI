@@ -9,7 +9,7 @@ from core.memory_store import save_long_memory, load_long_memory
 
 logger = logging.getLogger("Nexora")
 
-def run_agents(user_id: str, user_text: str):
+async def run_agents(user_id: str, user_text: str):
     """Orquesta el flujo de agentes para generar respuestas contextuales."""
     try:
         # 1. Supervisor decide si necesita investigación
