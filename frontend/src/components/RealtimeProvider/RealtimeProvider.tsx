@@ -29,7 +29,14 @@ interface RealtimeContextValue extends AssistantUIState {
 const RealtimeContext = createContext<RealtimeContextValue | null>(null);
 
 function generateMessageId(prefix: string): string {
-  return `${prefix}-${crypto.randomUUID()}`;
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function shouldTreatAsStreaming(messageId: string, streaming?: boolean): boolean {
+  return Boolean(streaming) || messageId === "assistant-stream";
 }
 
 function buildRealtimeUrl(): string {
@@ -105,7 +112,7 @@ export function RealtimeProvider({ children }: PropsWithChildren) {
         ...previous,
         typing: false,
         messages:
-          incomingMessage.streaming || messageId === "assistant-stream"
+          shouldTreatAsStreaming(messageId, incomingMessage.streaming)
             ? upsertStreamingAssistantMessage(previous.messages, incomingMessage)
             : [...previous.messages, incomingMessage],
       }));

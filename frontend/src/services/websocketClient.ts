@@ -17,7 +17,11 @@ export class WebSocketClient {
   constructor(
     private readonly url: string,
     private readonly options: WebSocketClientOptions = {},
-  ) {}
+  ) {
+    if (!/^wss?:\/\//i.test(url)) {
+      throw new Error("WebSocket URL must start with ws:// or wss://");
+    }
+  }
 
   connect(): void {
     if (
