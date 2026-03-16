@@ -2,10 +2,14 @@ import json
 import logging
 
 logger = logging.getLogger("Nexora")
+_AGENT_IMPORT_ERROR = None
+_AGENT_FUNCS = None
 
 
-async def run_agents(user_id: str, user_text: str):
-    """Orquesta el flujo de agentes para generar respuestas contextuales."""
+def _load_agent_dependencies():
+    global _AGENT_FUNCS, _AGENT_IMPORT_ERROR
+    if _AGENT_FUNCS is not None or _AGENT_IMPORT_ERROR is not None:
+        return
     try:
         from agents.supervisor import supervisor_agent
         from agents.research import research_agent
@@ -13,9 +17,40 @@ async def run_agents(user_id: str, user_text: str):
         from agents.verify import verify_agent
         from agents.memory import memory_agent
         from core.memory_store import save_long_memory, load_long_memory
+
+        _AGENT_FUNCS = (
+            supervisor_agent,
+            research_agent,
+            creative_agent,
+            verify_agent,
+            memory_agent,
+            save_long_memory,
+            load_long_memory,
+        )
     except Exception as exc:
-        logger.warning("Pipeline de agentes no disponible: %s", exc)
+        _AGENT_IMPORT_ERROR = exc
+
+
+async def run_agents(user_id: str, user_text: str):
+    """
+    Orquesta de forma asíncrona el flujo de agentes para generar respuestas.
+
+    Si los módulos de agentes no están disponibles en este despliegue, devuelve
+    un mensaje de fallback sin elevar excepciones de importación.
+    """
+    _load_agent_dependencies()
+    if _AGENT_IMPORT_ERROR is not None or _AGENT_FUNCS is None:
+        logger.warning("Pipeline de agentes no disponible: %s", _AGENT_IMPORT_ERROR)
         return "Pipeline de agentes no disponible en esta versión de despliegue."
+    (
+        supervisor_agent,
+        research_agent,
+        creative_agent,
+        verify_agent,
+        memory_agent,
+        save_long_memory,
+        load_long_memory,
+    ) = _AGENT_FUNCS
 
     try:
         route = await supervisor_agent(user_text)

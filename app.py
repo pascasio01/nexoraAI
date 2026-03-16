@@ -1,6 +1,7 @@
 import logging
 import os
 from contextlib import suppress
+from html import escape
 from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
@@ -9,17 +10,17 @@ from pydantic import BaseModel
 
 try:
     from openai import AsyncOpenAI
-except Exception:  # pragma: no cover - defensive import guard
+except ImportError:  # pragma: no cover - defensive import guard
     AsyncOpenAI = None  # type: ignore[assignment]
 
 try:
     import redis.asyncio as redis
-except Exception:  # pragma: no cover - defensive import guard
+except ImportError:  # pragma: no cover - defensive import guard
     redis = None  # type: ignore[assignment]
 
 try:
     from tavily import TavilyClient
-except Exception:  # pragma: no cover - defensive import guard
+except ImportError:  # pragma: no cover - defensive import guard
     TavilyClient = None  # type: ignore[assignment]
 
 try:
@@ -33,7 +34,7 @@ try:
     )
 
     TELEGRAM_IMPORT_OK = True
-except Exception:  # pragma: no cover - defensive import guard
+except ImportError:  # pragma: no cover - defensive import guard
     TELEGRAM_IMPORT_OK = False
 
 
@@ -48,10 +49,18 @@ logger = logging.getLogger("Nexora")
 APP_NAME = (os.getenv("APP_NAME") or "Nexora").strip()
 MODEL_NAME = (os.getenv("MODEL_NAME") or "gpt-4o-mini").strip()
 BASE_URL = (os.getenv("BASE_URL") or "").strip().rstrip("/")
-BOT_TOKEN = (os.getenv("BOT_TOKEN") or os.getenv("TELEGRAM_TOKEN") or "").strip()
+_bot_token_raw = os.getenv("BOT_TOKEN")
+_telegram_token_raw = os.getenv("TELEGRAM_TOKEN")
+BOT_TOKEN = (_bot_token_raw or _telegram_token_raw or "").strip()
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 REDIS_URL = (os.getenv("REDIS_URL") or "").strip()
 TAVILY_API_KEY = (os.getenv("TAVILY_API_KEY") or "").strip()
+
+if BOT_TOKEN:
+    if _bot_token_raw and _bot_token_raw.strip():
+        logger.info("Telegram token loaded from BOT_TOKEN")
+    elif _telegram_token_raw and _telegram_token_raw.strip():
+        logger.info("Telegram token loaded from TELEGRAM_TOKEN")
 
 
 class ChatRequest(BaseModel):
@@ -190,7 +199,7 @@ async def health() -> Dict[str, Any]:
             redis_ok = bool(await redis_client.ping())
 
     health_data = {
-        "status": "ok" if (openai_client is not None or redis_ok or tg_app is not None) else "degraded",
+        "status": "ok" if openai_client is not None else "degraded",
         "services": {
             "openai": openai_client is not None,
             "redis": redis_ok,
@@ -215,14 +224,15 @@ async def chat(req: ChatRequest) -> Dict[str, str]:
 
 
 @app.post("/reset-web")
-async def reset_web(req: ChatRequest) -> Dict[str, str]:
-    return {"ok": "true", "usuario": req.usuario or "web_user", "message": "Memoria web reseteada"}
+async def reset_web(req: ChatRequest) -> Dict[str, Any]:
+    return {"ok": True, "usuario": req.usuario or "web_user", "mensaje": "Memoria web reseteada"}
 
 
 @app.post("/whatsapp")
-async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)) -> Dict[str, str]:
+async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)) -> Response:
     answer = await ask_nexora(From, Body, "WhatsApp")
-    return {"respuesta": answer}
+    twiml = f"<Response><Message>{escape(answer, quote=True)}</Message></Response>"
+    return Response(content=twiml, media_type="application/xml")
 
 
 @app.post("/tg/{token}")
