@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>NEXORA OMNI</title>
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, sans-serif; background:#070b14; color:#ecf4ff; }
+      .container{max-width:960px;margin:0 auto;padding:24px;display:grid;gap:18px}
+      .card{background:#10182a;border:1px solid #243452;border-radius:16px;padding:16px}
+      .title{font-size:1.3rem;font-weight:700;margin:0}
+      .subtitle{opacity:.85;margin:8px 0 0}
+      .chat{height:280px;overflow:auto;background:#0a1222;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px}
+      .msg{padding:10px 12px;border-radius:10px;max-width:85%}
+      .user{align-self:flex-end;background:#1946ff}
+      .assistant{align-self:flex-start;background:#1a2740}
+      .input-row{display:flex;gap:8px}
+      input,button,select{border-radius:10px;border:1px solid #2d4066;background:#121d31;color:#fff;padding:10px}
+      input{flex:1}
+      button{cursor:pointer}
+      .avatar{width:74px;height:74px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 30% 30%,#6cb2ff,#3856f7,#18264f);font-weight:700;transition:transform .25s ease,opacity .25s ease}
+      .state-idle{opacity:.9}
+      .state-listening{transform:scale(1.08)}
+      .state-thinking{transform:scale(1.02) rotate(3deg)}
+      .state-responding{transform:scale(1.05)}
+      .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1 class="title">NEXORA OMNI · MVP</h1>
+        <p class="subtitle">Asistente persistente con orquestador, memoria estructurada y chat en tiempo real.</p>
+      </div>
+
+      <div class="card grid">
+        <div>
+          <div id="avatar" class="avatar state-idle">NO</div>
+          <p id="avatarState">Estado avatar: idle</p>
+        </div>
+        <div>
+          <label for="mode">Entrada</label>
+          <select id="mode">
+            <option value="text">Texto</option>
+            <option value="voice" disabled>Voz (hook preparado)</option>
+          </select>
+          <p>Paneles base: Memoria, Tareas, Dispositivos, Seguridad y Configuración via API.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div id="chat" class="chat"></div>
+        <div class="input-row">
+          <input id="messageInput" placeholder="Escribe tu mensaje" />
+          <button id="sendBtn">Enviar</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const chat = document.getElementById('chat');
+      const avatar = document.getElementById('avatar');
+      const avatarState = document.getElementById('avatarState');
+      const input = document.getElementById('messageInput');
+      const sendBtn = document.getElementById('sendBtn');
+      let token = '';
+      let ws;
+
+      function setState(state){
+        avatar.className = `avatar state-${state}`;
+        avatarState.textContent = `Estado avatar: ${state}`;
+      }
+
+      function pushMessage(role, text){
+        const item = document.createElement('div');
+        item.className = `msg ${role}`;
+        item.textContent = text;
+        chat.appendChild(item);
+        chat.scrollTop = chat.scrollHeight;
+      }
+
+      async function boot(){
+        const email = `demo_${Date.now()}@example.com`;
+        const register = await fetch('/auth/register', {
+          method:'POST', headers:{'content-type':'application/json'},
+          body: JSON.stringify({email, password:'NexoraPass123', full_name:'Demo User'})
+        });
+        const auth = await register.json();
+        token = auth.access_token;
+        ws = new WebSocket(`ws://${location.host}/ws/live-chat?token=${token}`);
+        ws.onmessage = (ev) => {
+          const payload = JSON.parse(ev.data);
+          if(payload.type === 'avatar_state'){ setState(payload.state); }
+          if(payload.type === 'message'){ pushMessage('assistant', payload.content); }
+        };
+      }
+
+      sendBtn.addEventListener('click', () => {
+        if(!input.value.trim() || !ws || ws.readyState !== 1) return;
+        const text = input.value.trim();
+        pushMessage('user', text);
+        ws.send(text);
+        input.value = '';
+      });
+
+      boot();
+    </script>
+  </body>
+</html>
