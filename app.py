@@ -14,7 +14,7 @@ logger = logging.getLogger("Nexora")
 # ENV
 # =========================
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 REDIS_URL = os.getenv("REDIS_URL")
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 BASE_URL = os.getenv("BASE_URL", "https://nexoraai-production.up.railway.app").rstrip("/")
@@ -35,7 +35,7 @@ RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "8"))
 if not OPENAI_API_KEY:
     raise ValueError("Falta OPENAI_API_KEY")
 if not BOT_TOKEN:
-    raise ValueError("Falta BOT_TOKEN")
+    raise ValueError("TELEGRAM_TOKEN environment variable is not set")
 if not REDIS_URL:
     raise ValueError("Falta REDIS_URL")
 if not BASE_URL:
@@ -579,7 +579,7 @@ MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 REDIS_URL = os.getenv("REDIS_URL")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
 OWNER_ID_RAW = os.getenv("OWNER_ID", "0")
 OWNER_ID = int(OWNER_ID_RAW) if OWNER_ID_RAW.isdigit() else 0
@@ -620,7 +620,7 @@ else:
         tavily = None
 
 if not BOT_TOKEN:
-    logger.warning("⚠️ BOT_TOKEN no configurado. Telegram desactivado.")
+    raise ValueError("TELEGRAM_TOKEN environment variable is not set")
 
 # =========================
 # APP
@@ -1029,7 +1029,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Nexora")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 REDIS_URL = os.getenv("REDIS_URL")
 OWNER_ID = int(os.getenv("OWNER_ID", "0"))
 BASE_URL = os.getenv("BASE_URL", "https://nexoraai-production.up.railway.app").rstrip("/")
@@ -1044,7 +1044,7 @@ CREATOR_ALIAS = os.getenv("CREATOR_ALIAS", "Emmanuel Reynoso")
 if not OPENAI_API_KEY:
     raise ValueError("Falta OPENAI_API_KEY")
 if not BOT_TOKEN:
-    raise ValueError("Falta BOT_TOKEN")
+    raise ValueError("TELEGRAM_TOKEN environment variable is not set")
 if not REDIS_URL:
     raise ValueError("Falta REDIS_URL")
 if not BASE_URL:
