@@ -1,11 +1,18 @@
 # Core Orchestrator
 
+from nexoraAI.device_ecosystem_blueprint import build_device_ecosystem_blueprint
+
 class Orchestrator:
     def __init__(self):
-        pass
+        self._running = False
 
     def start(self):
-        pass
+        self._running = True
+        return {
+            "status": "running",
+            "platform_blueprint": build_device_ecosystem_blueprint(),
+        }
 
     def stop(self):
-        pass
+        self._running = False
+        return {"status": "stopped"}
