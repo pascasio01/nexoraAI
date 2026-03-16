@@ -20,8 +20,8 @@ class AICore:
     @property
     def system_prompt(self) -> str:
         return (
-            f"Eres {APP_NAME}, asistente de IA creado por {CREATOR_NAME} ({CREATOR_ALIAS}). "
-            "Sé útil, clara y honesta. Usa herramientas cuando sumen valor real."
+            f"You are {APP_NAME}, an AI assistant created by {CREATOR_NAME} ({CREATOR_ALIAS}). "
+            "Be helpful, clear, and honest. Use tools when they provide real value."
         )
 
     async def _update_user_summary(self, user_id: str, text: str) -> None:
@@ -32,9 +32,9 @@ class AICore:
     async def _fallback_reply(self, user_id: str, text: str, channel: str) -> str:
         profile = await self.memory.get_user_profile(user_id)
         return (
-            "OpenAI no está configurado ahora mismo. "
-            f"Recibí tu mensaje por {channel}. Perfil: {profile}. "
-            "Puedo seguir guardando memoria y ejecutar herramientas locales."
+            "OpenAI is not configured right now. "
+            f"I received your message through {channel}. Profile: {profile}. "
+            "I can still store memory and run local tools."
         )
 
     async def _run_openai(self, user_id: str, session_id: str, text: str, channel: str) -> str:
@@ -50,10 +50,10 @@ class AICore:
                 "role": "system",
                 "content": (
                     f"{self.system_prompt}\n"
-                    f"Canal: {channel}\n"
-                    f"Perfil usuario: {profile}\n"
-                    f"Resumen memoria: {summary}\n"
-                    "Si usas herramientas, resume resultados con claridad."
+                    f"Channel: {channel}\n"
+                    f"User profile: {profile}\n"
+                    f"Memory summary: {summary}\n"
+                    "If you use tools, summarize outcomes clearly."
                 ),
             },
             *history,
@@ -73,9 +73,20 @@ class AICore:
         message = response.choices[0].message
 
         if not message.tool_calls:
-            return message.content or "No tengo respuesta ahora mismo."
+            return message.content or "I do not have a response right now."
 
-        messages.append({"role": "assistant", "content": message.content or "", "tool_calls": message.tool_calls})
+        normalized_tool_calls = [
+            {
+                "id": call.id,
+                "type": "function",
+                "function": {
+                    "name": call.function.name,
+                    "arguments": call.function.arguments,
+                },
+            }
+            for call in message.tool_calls
+        ]
+        messages.append({"role": "assistant", "content": message.content or "", "tool_calls": normalized_tool_calls})
         for call in message.tool_calls:
             args = json.loads(call.function.arguments or "{}")
             tool_result = await self.tools.invoke(call.function.name, user_id, args)
@@ -89,11 +100,11 @@ class AICore:
             )
 
         second = await self.client.chat.completions.create(model=model, messages=messages, temperature=temperature)
-        return second.choices[0].message.content or "Acción ejecutada sin respuesta textual."
+        return second.choices[0].message.content or "Action executed without a textual response."
 
     async def ask(self, user_id: str, session_id: str, text: str, channel: str) -> str:
         if not await self.memory.check_rate_limit(user_id):
-            return "⚠️ Límite de mensajes alcanzado. Espera un minuto."
+            return "⚠️ Message rate limit reached. Please wait one minute."
 
         await self.memory.save_chat_message(user_id, session_id, "user", text)
         await self._update_user_summary(user_id, text)
@@ -105,7 +116,7 @@ class AICore:
                 reply = await self._run_openai(user_id, session_id, text, channel)
         except Exception as exc:
             logger.exception("AI core error: %s", exc)
-            reply = "Tuve un problema temporal procesando tu solicitud."
+            reply = "I had a temporary issue while processing your request."
 
         await self.memory.save_chat_message(user_id, session_id, "assistant", reply)
         return reply

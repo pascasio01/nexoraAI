@@ -42,7 +42,7 @@ class ToolRegistry:
     async def invoke(self, name: str, user_id: str, args: dict[str, Any]) -> str:
         handler = self._handlers.get(name)
         if not handler:
-            return f"Tool '{name}' no está registrada."
+            return f"Tool '{name}' is not registered."
         return await handler(user_id, args)
 
     def plugin_index(self) -> dict[str, list[str]]:

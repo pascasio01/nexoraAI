@@ -15,39 +15,39 @@ from tools_schema import ToolRegistry, function_tool
 async def _search_web(user_id: str, args: dict[str, Any], tavily_client: Any | None) -> str:
     query = args.get("query", "")
     if not query:
-        return "Falta query para buscar en web."
+        return "Missing query for web search."
     if not tavily_client:
-        return "Búsqueda web no disponible: TAVILY_API_KEY no configurada."
+        return "Web search unavailable: TAVILY_API_KEY is not configured."
     try:
         result = tavily_client.search(query=query, max_results=3)
         items = result.get("results", [])
         if not items:
-            return "No encontré resultados."
-        return "\n".join(f"- {item.get('title','Sin título')}: {item.get('url','')}" for item in items)
+            return "No results found."
+        return "\n".join(f"- {item.get('title','Untitled')}: {item.get('url','')}" for item in items)
     except Exception as exc:
-        return f"Error en búsqueda web: {exc}"
+        return f"Web search error: {exc}"
 
 
 async def _create_note(user_id: str, args: dict[str, Any], memory: MemoryStore) -> str:
     note = {
-        "title": args.get("title", "Nota"),
+        "title": args.get("title", "Note"),
         "content": args.get("content", ""),
         "created_at": datetime.utcnow().isoformat(),
     }
     await memory.add_note(user_id, note)
-    return f"Nota guardada: {note['title']}"
+    return f"Note saved: {note['title']}"
 
 
 async def _list_notes(user_id: str, args: dict[str, Any], memory: MemoryStore) -> str:
     notes = await memory.list_notes(user_id)
     if not notes:
-        return "No hay notas guardadas."
-    return "\n".join(f"- {n.get('title', 'Nota')}: {n.get('content', '')}" for n in notes[-10:])
+        return "No notes found."
+    return "\n".join(f"- {n.get('title', 'Note')}: {n.get('content', '')}" for n in notes[-10:])
 
 
 async def _execute_webhook(user_id: str, args: dict[str, Any]) -> str:
     if not ACTION_WEBHOOK_URL:
-        return "Webhook automation no disponible: ACTION_WEBHOOK_URL no configurada."
+        return "Webhook automation unavailable: ACTION_WEBHOOK_URL is not configured."
 
     payload = {
         "user_id": user_id,
@@ -58,21 +58,21 @@ async def _execute_webhook(user_id: str, args: dict[str, Any]) -> str:
     try:
         async with httpx.AsyncClient(timeout=20) as client:
             response = await client.post(ACTION_WEBHOOK_URL, json=payload)
-        return f"Webhook ejecutado con estado {response.status_code}."
+        return f"Webhook executed with status {response.status_code}."
     except Exception as exc:
-        return f"Error ejecutando webhook: {exc}"
+        return f"Webhook execution error: {exc}"
 
 
 async def _set_reminder(user_id: str, args: dict[str, Any], memory: MemoryStore) -> str:
     content = args.get("content", "")
-    schedule_time = args.get("schedule_time", "sin fecha")
+    schedule_time = args.get("schedule_time", "no date")
     note = {
         "title": f"Reminder ({schedule_time})",
         "content": content,
         "created_at": datetime.utcnow().isoformat(),
     }
     await memory.add_note(user_id, note)
-    return f"Recordatorio creado para {schedule_time}."
+    return f"Reminder created for {schedule_time}."
 
 
 def register_default_tools(registry: ToolRegistry, memory: MemoryStore, tavily_client: Any | None) -> None:
@@ -82,7 +82,7 @@ def register_default_tools(registry: ToolRegistry, memory: MemoryStore, tavily_c
         name="search_web",
         schema=function_tool(
             "search_web",
-            "Busca información actualizada en internet.",
+            "Search for up-to-date information on the web.",
             {
                 "type": "object",
                 "properties": {"query": {"type": "string"}},
@@ -96,7 +96,7 @@ def register_default_tools(registry: ToolRegistry, memory: MemoryStore, tavily_c
         name="create_note",
         schema=function_tool(
             "create_note",
-            "Guarda una nota persistente del usuario.",
+            "Store a persistent user note.",
             {
                 "type": "object",
                 "properties": {
@@ -113,7 +113,7 @@ def register_default_tools(registry: ToolRegistry, memory: MemoryStore, tavily_c
         name="list_notes",
         schema=function_tool(
             "list_notes",
-            "Lista notas del usuario.",
+            "List user notes.",
             {"type": "object", "properties": {}, "required": []},
         ),
         handler=lambda user_id, args: _list_notes(user_id, args, memory),
@@ -123,7 +123,7 @@ def register_default_tools(registry: ToolRegistry, memory: MemoryStore, tavily_c
         name="set_reminder",
         schema=function_tool(
             "set_reminder",
-            "Crea un recordatorio para el usuario.",
+            "Create a reminder for the user.",
             {
                 "type": "object",
                 "properties": {
@@ -140,7 +140,7 @@ def register_default_tools(registry: ToolRegistry, memory: MemoryStore, tavily_c
         name="execute_webhook",
         schema=function_tool(
             "execute_webhook",
-            "Dispara automatizaciones vía webhook.",
+            "Trigger webhook-based automations.",
             {
                 "type": "object",
                 "properties": {

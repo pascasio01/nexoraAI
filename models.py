@@ -19,7 +19,7 @@ class UserProfile(BaseModel):
     """Long-term user profile information."""
 
     user_id: str
-    summary: str = "Usuario nuevo."
+    summary: str = "New user."
     preferences: dict[str, str] = Field(default_factory=dict)
 
 

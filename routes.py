@@ -49,7 +49,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
 async def reset_web(req: ChatRequest) -> dict[str, str]:
     memory = get_memory_store()
     await memory.reset_session(req.user_id, req.session_id)
-    return {"status": "ok", "message": "Memoria reiniciada"}
+    return {"status": "ok", "message": "Session memory reset"}
 
 
 @router.post("/users/{user_id}/assistant-config")
@@ -96,11 +96,11 @@ async def register_plugin_tool(payload: ToolRegistrationRequest) -> dict[str, ob
         },
     }
 
-    async def _not_implemented(user_id: str, args: dict) -> str:
+    async def _placeholder_tool_handler(user_id: str, args: dict) -> str:
         return (
-            f"Tool '{payload.tool_name}' del plugin '{payload.plugin_name}' registrada "
-            "como marcador de posición."
+            f"Tool '{payload.tool_name}' from plugin '{payload.plugin_name}' "
+            "was registered as a placeholder."
         )
 
-    registry.register(payload.tool_name, metadata_schema, _not_implemented, plugin_name=payload.plugin_name)
+    registry.register(payload.tool_name, metadata_schema, _placeholder_tool_handler, plugin_name=payload.plugin_name)
     return {"status": "ok", "plugins": registry.plugin_index()}

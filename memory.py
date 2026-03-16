@@ -16,6 +16,7 @@ class MemoryStore:
         self.redis = redis_client
         self._chat: dict[str, list[dict[str, str]]] = defaultdict(list)
         self._profiles: dict[str, str] = {}
+        self._summaries: dict[str, str] = {}
         self._assistant_cfg: dict[str, dict[str, Any]] = {}
         self._rate_limit: dict[str, int] = {}
         self._notes: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -63,8 +64,8 @@ class MemoryStore:
 
     async def get_user_profile(self, user_id: str) -> str:
         if self.redis:
-            return await self.redis.get(f"profile:{user_id}") or "Usuario nuevo."
-        return self._profiles.get(user_id, "Usuario nuevo.")
+            return await self.redis.get(f"profile:{user_id}") or "New user."
+        return self._profiles.get(user_id, "New user.")
 
     async def set_user_profile(self, user_id: str, profile_text: str) -> None:
         if self.redis:
@@ -75,13 +76,13 @@ class MemoryStore:
     async def get_memory_summary(self, user_id: str) -> str:
         if self.redis:
             return await self.redis.get(f"summary:{user_id}") or ""
-        return self._profiles.get(f"summary:{user_id}", "")
+        return self._summaries.get(user_id, "")
 
     async def set_memory_summary(self, user_id: str, summary: str) -> None:
         if self.redis:
             await self.redis.set(f"summary:{user_id}", summary)
             return
-        self._profiles[f"summary:{user_id}"] = summary
+        self._summaries[user_id] = summary
 
     async def get_assistant_config(self, user_id: str) -> dict[str, Any]:
         if self.redis:

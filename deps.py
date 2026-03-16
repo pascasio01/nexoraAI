@@ -77,7 +77,7 @@ def get_tool_registry() -> ToolRegistry:
     return tool_registry
 
 
-def get_ai_core():
+def get_ai_core() -> Any:
     global ai_core_service
     if ai_core_service is None:
         from ai_core import AICore
@@ -90,7 +90,7 @@ def get_ai_core():
     return ai_core_service
 
 
-def get_telegram_actor():
+def get_telegram_actor() -> Any:
     global telegram_actor_service
     if telegram_actor_service is None:
         from telegram_actor import TelegramActor

@@ -21,7 +21,7 @@ class TelegramActor:
         return bool(BOT_TOKEN)
 
     async def _cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await update.message.reply_text(f"{APP_NAME} conectado.")
+        await update.message.reply_text(f"{APP_NAME} connected.")
 
     async def _on_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not update.message or not update.effective_user:
