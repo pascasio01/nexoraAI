@@ -480,6 +480,8 @@ async def startup():
 
     await tg_app.initialize()
     await tg_app.start()
+    if not BASE_URL:
+        raise RuntimeError("BASE_URL no está configurada; no se puede registrar webhook de Telegram.")
     await tg_app.bot.set_webhook(url=f"{BASE_URL}/tg/{BOT_TOKEN}")
     logger.info("Telegram webhook activo")
 
