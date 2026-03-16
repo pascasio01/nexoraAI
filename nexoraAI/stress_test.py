@@ -29,7 +29,7 @@ class NexoraStressTest:
         self.iterations = iterations
 
     def run_economic_crash(self):
-        """Simula una caída del mercado y retraso en rentas."""
+        """Simulate a market crash and rent payment delays."""
         revenue_shocks = np.random.normal(loc=-0.10, scale=0.05, size=self.iterations)
         projected_liquidity = [
             self.patrimony["liquidity"] * (1 + shock) for shock in revenue_shocks
@@ -40,7 +40,7 @@ class NexoraStressTest:
         return (failures / self.iterations) * 100
 
     def run_operational_disaster(self):
-        """Simula fallos técnicos en edificios bajo clima extremo."""
+        """Simulate technical failures in buildings under extreme weather."""
         repair_costs = np.random.triangular(
             left=1000, mode=5000, right=20000, size=self.iterations
         )
