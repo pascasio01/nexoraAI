@@ -27,5 +27,9 @@ jobs:
         env:
           SHODAN_API_KEY: ${{ secrets.SHODAN_API_KEY }}
         run: |
-          LATEST_IMAGE=$(ls -t imagenes/ | head -1)
-          python analizador.py "imagenes/$LATEST_IMAGE"
+          LATEST_IMAGE=$(find imagenes -maxdepth 1 -type f -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)
+          if [ -z "$LATEST_IMAGE" ]; then
+            echo "No se encontró ninguna imagen en imagenes/"
+            exit 1
+          fi
+          python analizador.py "$LATEST_IMAGE"

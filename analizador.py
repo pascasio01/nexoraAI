@@ -17,7 +17,13 @@ def extraer_texto(path_imagen: str) -> str:
 
 def extraer_ips(texto: str) -> list[str]:
     patron_ip = r"\b(?:\d{1,3}\.){3}\d{1,3}\b"
-    return sorted(set(re.findall(patron_ip, texto)))
+    candidatos = set(re.findall(patron_ip, texto))
+    return sorted(ip for ip in candidatos if _es_ip_valida(ip))
+
+
+def _es_ip_valida(ip: str) -> bool:
+    partes = ip.split(".")
+    return len(partes) == 4 and all(parte.isdigit() and 0 <= int(parte) <= 255 for parte in partes)
 
 
 def consultar_shodan(ip: str, api_key: str) -> dict[str, Any]:
@@ -58,12 +64,13 @@ def main() -> int:
         print("Uso: python analizador.py <ruta_imagen>")
         return 1
 
+    path_imagen = sys.argv[1]
     try:
-        resultado = analizar_imagen(sys.argv[1])
+        resultado = analizar_imagen(path_imagen)
         print(json.dumps(resultado, ensure_ascii=False, indent=2))
         return 0
     except Exception as exc:
-        print(f"Error en análisis OSINT: {exc}")
+        print(f"Error en análisis OSINT de {path_imagen}: {type(exc).__name__}: {exc}")
         return 1
 
 

@@ -6,9 +6,9 @@ from unittest.mock import patch
 import analizador
 
 
-class AnalizadorTests(unittest.TestCase):
+class TestAnalizador(unittest.TestCase):
     def test_extraer_ips_unique_and_sorted(self):
-        texto = "IPs: 8.8.8.8, 1.1.1.1, 8.8.8.8"
+        texto = "IPs: 8.8.8.8, 1.1.1.1, 8.8.8.8, 999.999.999.999"
         self.assertEqual(analizador.extraer_ips(texto), ["1.1.1.1", "8.8.8.8"])
 
     def test_analizar_imagen_without_api_key_returns_warning(self):
