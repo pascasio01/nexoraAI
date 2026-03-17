@@ -3,7 +3,8 @@ uvicorn
 python-multipart
 python-dotenv
 openai
-redis
+redis>=4.5.0
+hiredis>=2.0.0
 tavily-python
 httpx
 python-telegram-bot==21.10
