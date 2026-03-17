@@ -101,24 +101,21 @@ async def ask_nexora(user_id: str, text: str) -> str:
     return answer
 
 
-async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    del context
+async def tg_start(update: Update, _context: ContextTypes.DEFAULT_TYPE):
     if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
         return
     if update.message:
         await update.message.reply_text("✅ Nexora está activa.")
 
 
-async def tg_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    del context
+async def tg_status(update: Update, _context: ContextTypes.DEFAULT_TYPE):
     if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
         return
     if update.message:
         await update.message.reply_text("Nexora status: activa.")
 
 
-async def tg_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    del context
+async def tg_reset(update: Update, _context: ContextTypes.DEFAULT_TYPE):
     if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
         return
     if update.effective_user:
@@ -127,8 +124,7 @@ async def tg_reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Memoria reiniciada.")
 
 
-async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    del context
+async def handle_telegram(update: Update, _context: ContextTypes.DEFAULT_TYPE):
     if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
         return
     if update.message and update.message.text and update.effective_user:
