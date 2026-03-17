@@ -70,7 +70,7 @@ def main() -> int:
         print(json.dumps(resultado, ensure_ascii=False, indent=2))
         return 0
     except Exception as exc:
-        print(f"Error en análisis OSINT de {path_imagen}: {type(exc).__name__}: {exc}")
+        print(f"Error en análisis OSINT de {os.path.basename(path_imagen)}: {type(exc).__name__}")
         return 1
 
 
