@@ -5,6 +5,9 @@ on:
     paths:
       - 'imagenes/**'
 
+permissions:
+  contents: read
+
 jobs:
   analizar:
     runs-on: ubuntu-latest
