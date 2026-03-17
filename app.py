@@ -1,6 +1,10 @@
 import os
+import json
+import html
+import io
 import logging
 from dotenv import load_dotenv
+import redis.asyncio as redis
 
 load_dotenv()
 
@@ -38,8 +42,6 @@ if not BOT_TOKEN:
     raise ValueError("Falta BOT_TOKEN")
 if not REDIS_URL:
     raise ValueError("Falta REDIS_URL")
-if not BASE_URL:
-    raise ValueError("Falta BASE_URL")       import redis.asyncio as redis
 from openai import AsyncOpenAI
 from tavily import TavilyClient
 
@@ -47,9 +49,8 @@ from config import OPENAI_API_KEY, REDIS_URL, TAVILY_API_KEY
 
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 r = redis.from_url(REDIS_URL, decode_responses=True)
-tavily = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None    import json
+tavily = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
 from config import MAX_CHAT_HISTORY, RATE_LIMIT_PER_MINUTE
-from deps import r
 
 # =========================
 # RATE LIMIT
@@ -79,7 +80,7 @@ async def load_chat_memory(user_id: str):
     return [json.loads(m) for m in history_raw]
 
 async def reset_memory(user_id: str):
-    await r.delete(f"chat:{user_id}")  import json
+    await r.delete(f"chat:{user_id}")
 from datetime import datetime
 import httpx
 
@@ -127,7 +128,8 @@ async def execute_action(action_name: str, details: dict):
             res = await client_http.post(ACTION_WEBHOOK_URL, json=payload)
             return f"Acción '{action_name}' enviada. Estado: {res.status_code}"
     except Exception as e:
-        return f"Error ejecutando acción: {e}"   tools = [
+        return f"Error ejecutando acción: {e}"
+tools = [
     {
         "type": "function",
         "function": {
@@ -197,7 +199,7 @@ async def execute_action(action_name: str, details: dict):
             }
         }
     }
-]     import json
+]
 import asyncio
 
 from config import APP_NAME, CREATOR_NAME, CREATOR_ALIAS, MODEL_NAME, logger
@@ -317,11 +319,12 @@ async def ask_nexora(user_id: str, text: str, channel: str):
     await save_chat_memory(user_id, "assistant", answer)
 
     asyncio.create_task(update_user_profile(user_id, f"User: {text} | Nexora: {answer}"))
-    return answer    from pydantic import BaseModel
+    return answer
+from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     texto: str
-    usuario: str | None = "web_user"  import io
+    usuario: str | None = "web_user"
 from fastapi import Request, Response
 from telegram import Update
 from telegram.constants import ChatAction
@@ -466,7 +469,7 @@ async def telegram_webhook(token: str, request: Request):
 
     data = await request.json()
     await tg_app.process_update(Update.de_json(data, tg_app.bot))
-    return {"ok": True}    import html
+    return {"ok": True}
 from fastapi import APIRouter, Form, Response
 from deps import r
 from config import APP_NAME, MODEL_NAME
@@ -527,7 +530,7 @@ async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
 # =========================
 @router.post("/tg/{token}")
 async def tg_webhook(token: str, request):
-    return await telegram_webhook(token, request)   from fastapi import FastAPI
+    return await telegram_webhook(token, request)
 
 from config import APP_NAME
 from routes import router
@@ -542,9 +545,7 @@ async def startup():
 
 @app.on_event("shutdown")
 async def shutdown():
-    await telegram_shutdown()         import os
-import json
-import logging
+    await telegram_shutdown()
 
 from fastapi import FastAPI, Request, Response
 from dotenv import load_dotenv
@@ -844,61 +845,9 @@ async def save_long_memory(user_id, memory):
     return None
 
 async def load_long_memory(user_id):
-    return None(function(){
-  const site_id = document.currentScript.getAttribute('data-site-id');# core/__init__.py
-  let visitor_id = localStorage.getItem(site_id+"_visitor");
-  if (!visitor_id) {
-    const name = prompt("¿Cómo te llamas?");
-    fetch("/visitor/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ site_id, name })
-    })
-    .then(res => res.json())
-    .then(data => {
-      visitor_id = data.visitor_id;
-      localStorage.setItem(site_id+"_visitor", visitor_id);
-      startChat();
-    });
-  } else {
-    startChat();
-  }
-  function startChat() {
-    fetch("/room/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ site_id, type: "soporte" })
-    })
-    .then(res => res.json())
-    .then(data => {
-      const room_id = data.room_id;
-      const chatDiv = document.createElement('div');
-      chatDiv.innerHTML = `<div id="nexora-widget" style="position:fixed;bottom:24px;right:24px;background:#fff;padding:12px;border-radius:8px;box-shadow:0 2px 8px #aaa;">
-          <div id="msgs" style="max-height:150px;overflow:auto;margin-bottom:8px;"></div>
-          <input id="msg" placeholder="Escribe..." style="width:120px;">
-          <button id="send">Enviar</button>
-        </div>`;
-      document.body.appendChild(chatDiv);
-      const ws = new WebSocket("wss://TU_BACKEND/ws/" + site_id + "/" + room_id);
-      ws.onmessage = evt => {
-        const msgData = JSON.parse(evt.data);
-        const msgBox = document.getElementById('msgs');
-        const msgElem = document.createElement('div');
-        msgElem.textContent = msgData.content;
-        msgBox.appendChild(msgElem);
-        msgBox.scrollTop = msgBox.scrollHeight;
-      };
-      document.getElementById('send').onclick = () => {
-        const content = document.getElementById('msg').value;
-        ws.send(JSON.stringify({
-          visitor_id,
-          content
-        }));
-        document.getElementById('msg').value = "";
-      };
-    });
-  }
-})();<script src="https://TU_DOMINIO/widget.js" data-site-id="abc123"></script>connections = {}
+    return None
+
+connections = {}
 
 @app.websocket("/ws/{site_id}/{room_id}")
 async def websocket_room(websocket: WebSocket, site_id: str, room_id: str):
@@ -921,7 +870,9 @@ async def websocket_room(websocket: WebSocket, site_id: str, room_id: str):
                     "content": content
                 }))
     except WebSocketDisconnect:
-        connections[key].remove(websocket)@app.post("/visitor/register")
+        connections[key].remove(websocket)
+
+@app.post("/visitor/register")
 async def register_visitor(site_id: str, name: str = "", email: str = ""):
     visitor_id = f"{site_id}_{uuid.uuid4().hex[:10]}"
     with engine.connect() as conn:
@@ -951,7 +902,9 @@ async def send_message(room_id: str, visitor_id: str, content: str):
 async def get_messages(room_id: str):
     with engine.connect() as conn:
         result = conn.execute(select(messages).where(messages.c.room_id == room_id)).fetchall()
-    return [{"visitor_id": r.visitor_id, "content": r.content, "timestamp": r.timestamp} for r in result]sites = Table("sites", metadata,
+    return [{"visitor_id": r.visitor_id, "content": r.content, "timestamp": r.timestamp} for r in result]
+
+sites = Table("sites", metadata,
     Column("id", Integer, primary_key=True),
     Column("site_id", String, unique=True),
     Column("name", String),
@@ -994,9 +947,7 @@ import uuid
 # ========== VARIABLES DE ENTORNO ==========
 DATABASE_URL = os.getenv("DATABASE_URL")  # Railway variable
 engine = create_engine(DATABASE_URL)
-metadata = MetaData()import os
-import json
-import html
+metadata = MetaData()
 import io
 import logging
 import asyncio
