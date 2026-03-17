@@ -15,7 +15,7 @@ def _safe_ocr_read(image_path: str) -> List[str]:
     try:
         import cv2  # type: ignore
         import pytesseract  # type: ignore
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         return []
 
     img = cv2.imread(str(image_file))
@@ -27,7 +27,7 @@ def _safe_ocr_read(image_path: str) -> List[str]:
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 
-def analizar_identidad_y_entorno(ruta_imagen: str, ciudad: str = "New York") -> str:
+def analizar_identidad_y_entorno(ruta_imagen: str, ciudad: str = "") -> str:
     """
     Genera un reporte seguro a partir de una imagen.
 
