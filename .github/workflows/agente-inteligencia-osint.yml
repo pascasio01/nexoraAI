@@ -1,0 +1,38 @@
+name: Agente de Inteligencia OSINT
+
+on:
+  push:
+    paths:
+      - 'imagenes/**'
+
+permissions:
+  contents: read
+
+jobs:
+  analizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Instalar dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          pip install shodan opencv-python pytesseract numpy
+
+      - name: Ejecutar Agente de Inteligencia
+        env:
+          SHODAN_API_KEY: ${{ secrets.SHODAN_API_KEY }}
+        run: |
+          LATEST_IMAGE=$(find imagenes -maxdepth 1 -type f -printf '%T@ %p\n' | sort -nr | head -1 | cut -d' ' -f2-)
+          if [ -z "$LATEST_IMAGE" ]; then
+            echo "No se encontró ninguna imagen en imagenes/"
+            exit 1
+          fi
+          python analizador.py "$LATEST_IMAGE"
