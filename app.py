@@ -1,4 +1,7 @@
 import os
+import json
+import html
+import io
 import logging
 from dotenv import load_dotenv
 import redis.asyncio as redis
@@ -47,9 +50,7 @@ from config import OPENAI_API_KEY, REDIS_URL, TAVILY_API_KEY
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 r = redis.from_url(REDIS_URL, decode_responses=True)
 tavily = TavilyClient(api_key=TAVILY_API_KEY) if TAVILY_API_KEY else None
-import json
 from config import MAX_CHAT_HISTORY, RATE_LIMIT_PER_MINUTE
-from deps import r
 
 # =========================
 # RATE LIMIT
@@ -80,7 +81,6 @@ async def load_chat_memory(user_id: str):
 
 async def reset_memory(user_id: str):
     await r.delete(f"chat:{user_id}")
-import json
 from datetime import datetime
 import httpx
 
@@ -200,7 +200,6 @@ tools = [
         }
     }
 ]
-import json
 import asyncio
 
 from config import APP_NAME, CREATOR_NAME, CREATOR_ALIAS, MODEL_NAME, logger
@@ -326,7 +325,6 @@ from pydantic import BaseModel
 class ChatRequest(BaseModel):
     texto: str
     usuario: str | None = "web_user"
-import io
 from fastapi import Request, Response
 from telegram import Update
 from telegram.constants import ChatAction
@@ -472,7 +470,6 @@ async def telegram_webhook(token: str, request: Request):
     data = await request.json()
     await tg_app.process_update(Update.de_json(data, tg_app.bot))
     return {"ok": True}
-import html
 from fastapi import APIRouter, Form, Response
 from deps import r
 from config import APP_NAME, MODEL_NAME
@@ -534,7 +531,6 @@ async def whatsapp_webhook(Body: str = Form(...), From: str = Form(...)):
 @router.post("/tg/{token}")
 async def tg_webhook(token: str, request):
     return await telegram_webhook(token, request)
-from fastapi import FastAPI
 
 from config import APP_NAME
 from routes import router
@@ -550,9 +546,6 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     await telegram_shutdown()
-import os
-import json
-import logging
 
 from fastapi import FastAPI, Request, Response
 from dotenv import load_dotenv
@@ -955,9 +948,6 @@ import uuid
 DATABASE_URL = os.getenv("DATABASE_URL")  # Railway variable
 engine = create_engine(DATABASE_URL)
 metadata = MetaData()
-import os
-import json
-import html
 import io
 import logging
 import asyncio
