@@ -1,5 +1,7 @@
 import os
+import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 
@@ -31,6 +33,28 @@ class TestAnalizador(unittest.TestCase):
 
         mock_consultar.assert_called_once_with("8.8.8.8", "dummy")
         self.assertEqual(resultado["shodan"], [{"ip": "8.8.8.8", "puertos": [53]}])
+
+    def test_consultar_shodan_api_error_returns_error_dict(self):
+        fake_shodan = types.ModuleType("shodan")
+
+        class FakeAPIError(Exception):
+            pass
+
+        class FakeClient:
+            def __init__(self, api_key):
+                self.api_key = api_key
+
+            def host(self, ip):
+                raise FakeAPIError("sin acceso")
+
+        fake_shodan.APIError = FakeAPIError
+        fake_shodan.Shodan = FakeClient
+
+        with patch.dict(sys.modules, {"shodan": fake_shodan}):
+            resultado = analizador.consultar_shodan("1.1.1.1", "dummy")
+
+        self.assertEqual(resultado["ip"], "1.1.1.1")
+        self.assertIn("error", resultado)
 
 
 if __name__ == "__main__":

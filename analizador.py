@@ -48,7 +48,7 @@ def analizar_imagen(path_imagen: str, api_key: str | None = None) -> dict[str, A
 
     texto = extraer_texto(path_imagen)
     ips = extraer_ips(texto)
-    api_key = api_key or os.getenv("SHODAN_API_KEY", "")
+    api_key = api_key if api_key is not None else os.getenv("SHODAN_API_KEY", "")
 
     resultado: dict[str, Any] = {"imagen": path_imagen, "texto": texto, "ips": ips, "shodan": []}
     if not api_key:
