@@ -1,0 +1,31 @@
+name: Agente de Inteligencia OSINT
+
+on:
+  push:
+    paths:
+      - 'imagenes/**'
+
+jobs:
+  analizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v3
+
+      - name: Configurar Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Instalar dependencias
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          pip install shodan opencv-python pytesseract numpy
+
+      - name: Ejecutar Agente de Inteligencia
+        env:
+          SHODAN_API_KEY: ${{ secrets.SHODAN_API_KEY }}
+        run: |
+          LATEST_IMAGE=$(ls -t imagenes/ | head -1)
+          python analizador.py "imagenes/$LATEST_IMAGE"
