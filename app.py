@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from openai import AsyncOpenAI
+from pydantic import BaseModel
 import redis.asyncio as redis
 from tavily import TavilyClient
 from telegram import Update
@@ -63,6 +64,53 @@ if not BOT_TOKEN:
 app = FastAPI(title=APP_NAME)
 
 
+class ChatRequest(BaseModel):
+    texto: str
+    usuario: str | None = "web_user"
+
+
+async def save_chat_memory(user_id: str, role: str, content: str) -> None:
+    if r is None:
+        return
+    try:
+        await r.rpush(f"chat:{user_id}", json.dumps({"role": role, "content": content}))
+        await r.ltrim(f"chat:{user_id}", -12, -1)
+    except Exception as e:
+        logger.warning(f"No se pudo guardar memoria: {e}")
+
+
+async def load_chat_memory(user_id: str) -> list[dict]:
+    if r is None:
+        return []
+    try:
+        history_raw = await r.lrange(f"chat:{user_id}", 0, -1)
+        return [json.loads(m) for m in history_raw]
+    except Exception as e:
+        logger.warning(f"No se pudo cargar memoria: {e}")
+        return []
+
+
+async def ask_nexora(user_id: str, text: str) -> str:
+    if client is None:
+        return "⚠️ OpenAI no está configurado ahora mismo."
+
+    history = await load_chat_memory(user_id)
+    try:
+        response = await client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=history + [{"role": "user", "content": text}],
+            max_tokens=500,
+        )
+        answer = response.choices[0].message.content or "No pude generar respuesta."
+    except Exception as e:
+        logger.error(f"Error OpenAI: {e}")
+        return "⚠️ Hubo un problema generando la respuesta."
+
+    await save_chat_memory(user_id, "user", text)
+    await save_chat_memory(user_id, "assistant", answer)
+    return answer
+
+
 async def tg_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
         return
@@ -74,7 +122,12 @@ async def handle_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if OWNER_ID and update.effective_user and update.effective_user.id != OWNER_ID:
         return
     if update.message and update.message.text:
-        await update.message.reply_text("Telegram activo.")
+        if not update.effective_user:
+            logger.warning("Mensaje de Telegram sin usuario efectivo; se ignora.")
+            return
+        user_id = str(update.effective_user.id)
+        reply = await ask_nexora(user_id, update.message.text)
+        await update.message.reply_text(reply)
 
 
 @app.on_event("startup")
@@ -149,6 +202,13 @@ async def health():
         "tavily": tavily is not None,
         "telegram": tg_app is not None,
     }
+
+
+@app.post("/chat")
+async def chat(req: ChatRequest):
+    user_id = req.usuario or "web_user"
+    answer = await ask_nexora(user_id, req.texto)
+    return {"respuesta": answer}
 
 
 @app.post("/tg/{token}")
