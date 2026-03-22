@@ -1,3 +1,4 @@
+ copilot/fix-deployment-issues-fastapi
 fastapi>=0.95.0
 uvicorn[standard]>=0.22.0
 redis>=4.5.0
@@ -9,3 +10,15 @@ tavily-python
 httpx
 python-telegram-bot==21.10
 pydantic
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+openai
+redis>=4.5.0
+hiredis>=2.0.0
+tavily-python
+httpx
+python-telegram-bot==21.10
+pydantic
+>>> main
